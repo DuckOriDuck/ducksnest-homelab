@@ -32,7 +32,6 @@
   services.fail2ban = {
     enable = true;
     bantime = "1h";
-    findtime = 600;
     maxretry = 3;
   };
 
