@@ -41,7 +41,7 @@
     nethogs
     
     # Text editors
-    nvim
+    neovim
     emacs
     
     # File management
