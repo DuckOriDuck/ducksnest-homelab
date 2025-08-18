@@ -1,11 +1,20 @@
 # NixOS configuration for laptop-old - Worker node
-{ config, pkgs, commonPackages, ... }:
+{ config, pkgs, ... }:
 
 {
   imports = [
     ./hardware-configuration.nix
+    ../../modules/common/base.nix
+    ../../modules/common/security.nix
+    ../../modules/common/users.nix
+    ../../modules/common/boot-bios.nix
     ../../modules/roles/worker-node.nix
+    ../../modules/roles/tailscale-client.nix
   ];
+
+  # GRUB device configuration for BIOS boot
+  boot.loader.grub.device = "/dev/sda";
+  boot.loader.grub.useOSProber = true;
 
   # Hostname
   networking.hostName = "ducksnest-laptop-old";
@@ -18,37 +27,46 @@
   ];
 
   # Worker node specific packages
-  environment.systemPackages = commonPackages ++ (with pkgs; [
+  environment.systemPackages = with pkgs; [
     # GUI tools for worker node
     lens  # Kubernetes IDE
     remmina
     tigervnc
-    
-    # K3s agent
-    k3s
-  ]);
+  ];
 
   # Services specific to worker node
   services = {
-    # K3s worker node
-    k3s = {
+    # OpenSSH daemon
+    openssh = {
       enable = true;
-      role = "agent";
-      serverAddr = "https://ducksnest-controlplane:6443";
-      # tokenFile = "/var/lib/k3s/token";  # Set this with the cluster token
+      settings = {
+        PermitRootLogin = "no";
+        PasswordAuthentication = false;
+      };
     };
+
+    # Power management - no sleep
+    logind.extraConfig = ''
+      HandleLidSwitch=ignore
+      HandleLidSwitchDocked=ignore
+      IdleAction=ignore
+    '';
 
     # Desktop environment for worker node
     xserver = {
       enable = true;
       displayManager.gdm.enable = true;
       desktopManager.gnome.enable = true;
+      xkb = {
+        layout = "us";
+        variant = "";
+      };
     };
   };
 
   # Environment variables for worker node
   environment.variables = {
-    KUBECONFIG = "/etc/rancher/k3s/k3s.yaml";
+    KUBECONFIG = "/etc/kubernetes/admin.conf";
     HOMELAB_ENV = "laptop-old";
     HOMELAB_ROLE = "worker-node";
   };
@@ -57,7 +75,6 @@
   environment.shellAliases = {
     # Kubernetes shortcuts
     k = "kubectl";
-    k3 = "k3s kubectl";
     
     # System monitoring
     htop = "btop";
@@ -68,6 +85,19 @@
     dps = "docker ps";
   };
 
+  # Extended locale settings
+  i18n.extraLocaleSettings = {
+    LC_ADDRESS = "ko_KR.UTF-8";
+    LC_IDENTIFICATION = "ko_KR.UTF-8";
+    LC_MEASUREMENT = "ko_KR.UTF-8";
+    LC_MONETARY = "ko_KR.UTF-8";
+    LC_NAME = "ko_KR.UTF-8";
+    LC_NUMERIC = "ko_KR.UTF-8";
+    LC_PAPER = "ko_KR.UTF-8";
+    LC_TELEPHONE = "ko_KR.UTF-8";
+    LC_TIME = "ko_KR.UTF-8";
+  };
+
   # This value determines the NixOS release
-  system.stateVersion = "23.11";
+  system.stateVersion = "25.05";
 }

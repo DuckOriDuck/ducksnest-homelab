@@ -1,10 +1,15 @@
 # NixOS configuration for laptop-ultra - Worker node  
-{ config, pkgs, commonPackages, ... }:
+{ config, pkgs, ... }:
 
 {
   imports = [
     ./hardware-configuration.nix
+    ../../modules/common/base.nix
+    ../../modules/common/security.nix
+    ../../modules/common/users.nix
+    ../../modules/common/boot-uefi.nix
     ../../modules/roles/worker-node.nix
+    ../../modules/roles/tailscale-client.nix
   ];
 
   # Hostname
@@ -18,17 +23,8 @@
   ];
 
   # Additional development packages for worker node
-  environment.systemPackages = commonPackages ++ (with pkgs; [
-    # Development IDEs
-    vscode
-    jetbrains.idea-community
-    
-    # GUI tools for development
-    postman
-    dbeaver
-    wireshark
-    lens  # Kubernetes IDE
-    
+  environment.systemPackages = with pkgs; [
+
     # Additional development tools
     podman
     buildah
@@ -45,31 +41,43 @@
     nethogs
     
     # Text editors
-    neovim
+    nvim
     emacs
     
     # File management
     mc
     ranger
-  ]);
+  ];
 
   # Services specific to development worker node
   services = {
-    # K3s worker node
-    k3s = {
+    # OpenSSH daemon
+    openssh = {
       enable = true;
-      role = "agent";
-      serverAddr = "https://ducksnest-controlplane:6443";
-      # tokenFile = "/var/lib/k3s/token";  # Set this with the cluster token
+      openFirewall = true;
+      settings = {
+        PermitRootLogin = "no";
+        PasswordAuthentication = false;
+      };
     };
+
+    # Power management - no sleep
+    logind.extraConfig = ''
+      HandleLidSwitch=ignore
+      HandleLidSwitchDocked=ignore
+      HandleLidSwitchExternalPower=ignore
+      IdleAction=ignore
+    '';
 
     # Desktop environment for development
     xserver = {
       enable = true;
       displayManager.gdm.enable = true;
       desktopManager.gnome.enable = true;
-      layout = "us";
-      xkbVariant = "";
+      xkb = {
+        layout = "us";
+        variant = "";
+      };
     };
     
     # Audio for development environment
@@ -123,7 +131,7 @@
 
   # Environment variables for development worker node
   environment.variables = {
-    KUBECONFIG = "/etc/rancher/k3s/k3s.yaml";
+    KUBECONFIG = "/etc/kubernetes/admin.conf";
     NODE_ENV = "development";
     HOMELAB_ENV = "laptop-ultra";
     HOMELAB_ROLE = "worker-node-dev";
@@ -133,7 +141,6 @@
   environment.shellAliases = {
     # Kubernetes shortcuts
     k = "kubectl";
-    k3 = "k3s kubectl";
     kx = "kubectl explain";
     kgp = "kubectl get pods";
     kgs = "kubectl get services";
@@ -175,5 +182,5 @@
   };
 
   # This value determines the NixOS release
-  system.stateVersion = "23.11";
+  system.stateVersion = "25.05";
 }

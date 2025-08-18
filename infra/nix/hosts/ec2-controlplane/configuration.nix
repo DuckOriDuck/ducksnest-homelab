@@ -1,9 +1,14 @@
-{ config, pkgs, commonPackages, ... }:
+{ config, pkgs, ... }:
 
 {
   imports = [
     ./hardware-configuration.nix
+    ../../modules/common/base.nix
+    ../../modules/common/security.nix
+    ../../modules/common/users.nix
+    ../../modules/common/boot-uefi.nix
     ../../modules/roles/control-plane.nix
+    ../../modules/roles/tailscale-client.nix
   ];
 
   # Hostname
@@ -13,17 +18,13 @@
   ec2.hvm = true;
 
   # System packages specific to control plane
-  environment.systemPackages = commonPackages ++ (with pkgs; [
-    # ArgoCD
-    argocd
-    
+  environment.systemPackages = with pkgs; [
     # Additional control plane tools
-    etcdctl
     kubernetes-helm
     
     # AWS CLI
     awscli2
-  ]);
+  ];
 
   # Control plane specific environment variables
   environment.variables = {
@@ -59,36 +60,43 @@
 
   # Systemd services for cluster initialization
   systemd.services = {
-    # ArgoCD installation
-    argocd-install = {
-      description = "Install ArgoCD";
-      after = [ "k3s.service" ];
+    # Cluster initialization with kubeadm
+    kubeadm-init = {
+      description = "Initialize Kubernetes cluster with kubeadm";
+      after = [ "network-online.target" "cri-o.service" ];
+      wants = [ "network-online.target" ];
       wantedBy = [ "multi-user.target" ];
       
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        ExecStart = pkgs.writeScript "argocd-install" ''
+        ExecStart = pkgs.writeScript "kubeadm-init" ''
           #!${pkgs.bash}/bin/bash
-          export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+          set -euo pipefail
           
-          # Wait for K3s to be ready
-          while ! ${pkgs.kubectl}/bin/kubectl get nodes; do
-            sleep 5
-          done
+          # Check if cluster is already initialized
+          if [ -f /etc/kubernetes/admin.conf ]; then
+            echo "Kubernetes cluster already initialized"
+            exit 0
+          fi
           
-          # Install ArgoCD
-          ${pkgs.kubectl}/bin/kubectl create namespace argocd || true
-          ${pkgs.kubectl}/bin/kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          # Initialize cluster with kubeadm
+          ${pkgs.kubernetes}/bin/kubeadm init \
+            --pod-network-cidr=10.244.0.0/16 \
+            --service-cidr=10.96.0.0/12 \
+            --cri-socket=unix:///var/run/crio/crio.sock
           
-          # Patch ArgoCD server for insecure mode
-          ${pkgs.kubectl}/bin/kubectl patch configmap argocd-cmd-params-cm -n argocd --type merge -p '{"data":{"server.insecure":"true"}}'
-          ${pkgs.kubectl}/bin/kubectl rollout restart deployment argocd-server -n argocd
+          # Set up kubeconfig for root
+          mkdir -p /root/.kube
+          cp /etc/kubernetes/admin.conf /root/.kube/config
+          
+          # Install Flannel CNI
+          ${pkgs.kubectl}/bin/kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
         '';
       };
     };
   };
 
   # This value determines the NixOS release
-  system.stateVersion = "23.11";
+  system.stateVersion = "25.05";
 }

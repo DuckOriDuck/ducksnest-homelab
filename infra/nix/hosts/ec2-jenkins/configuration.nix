@@ -1,9 +1,14 @@
-{ config, pkgs, commonPackages, ... }:
+{ config, pkgs, ... }:
 
 {
   imports = [
     ./hardware-configuration.nix
+    ../../modules/common/base.nix
+    ../../modules/common/security.nix
+    ../../modules/common/users.nix
+    ../../modules/common/boot-uefi.nix
     ../../modules/roles/jenkins.nix
+    ../../modules/roles/headscale-server.nix
   ];
 
   # Hostname
@@ -13,7 +18,7 @@
   ec2.hvm = true;
 
   # System packages specific to Jenkins server
-  environment.systemPackages = commonPackages ++ (with pkgs; [
+  environment.systemPackages = with pkgs; [
     # Additional CI/CD tools
     docker-compose
     terraform
@@ -25,7 +30,7 @@
     # Monitoring tools
     prometheus
     grafana
-  ]);
+  ];
 
   # Jenkins specific environment variables
   environment.variables = {
@@ -95,5 +100,5 @@
   };
 
   # This value determines the NixOS release
-  system.stateVersion = "23.11";
+  system.stateVersion = "25.05";
 }

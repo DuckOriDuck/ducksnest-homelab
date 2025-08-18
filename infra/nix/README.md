@@ -1,253 +1,167 @@
 # NixOS Configuration for DuckNest Homelab
 
-This directory contains NixOS configurations for the homelab environment using Nix Flakes.
+Modular NixOS configurations using Nix Flakes for the homelab infrastructure.
 
 ## Structure
 
 ```
 nix/
-├── flake.nix                    # Main flake configuration
-├── flake.lock                  # Lock file for reproducible builds
-├── hosts/
-│   ├── laptopA/                # Development workstation
-│   │   ├── configuration.nix   # System configuration
-│   │   ├── hardware-configuration.nix  # Hardware-specific settings
-│   │   └── home.nix           # Home Manager configuration
-│   └── laptopB/                # Server/production workstation
-│       ├── configuration.nix   # System configuration
-│       ├── hardware-configuration.nix  # Hardware-specific settings
-│       └── home.nix           # Home Manager configuration
-└── README.md                   # This file
+├── flake.nix                    # Host definitions and system architectures
+├── hosts/                      # Host-specific configurations
+│   ├── ec2-controlplane/       # Kubernetes control plane (AWS EC2)
+│   ├── ec2-jenkins/            # Jenkins + Headscale server (AWS EC2)
+│   ├── laptop-ultra/           # Development workstation
+│   └── laptop-old/             # Basic worker node
+└── modules/                    # Modular configuration components
+    ├── common/                 # Shared configurations
+    │   ├── base.nix           # System basics (time, locale, networking)
+    │   ├── users.nix          # Common user accounts
+    │   ├── security.nix       # Security hardening
+    │   ├── boot-uefi.nix      # UEFI boot (systemd-boot)
+    │   └── boot-bios.nix      # BIOS boot (GRUB)
+    └── roles/                 # Role-based configurations
+        ├── control-plane.nix  # Kubernetes control plane
+        ├── worker-node.nix    # Kubernetes worker node
+        ├── jenkins.nix        # Jenkins CI/CD server
+        ├── headscale-server.nix # Headscale VPN server
+        └── tailscale-client.nix # Tailscale VPN client
 ```
 
-## Host Profiles
+## Hosts
 
-### LaptopA - Development Workstation
-- **Purpose**: Primary development environment
-- **Features**: 
-  - Full desktop environment (GNOME)
-  - Development tools (VS Code, IDEs)
-  - Container runtime (Docker)
-  - Kubernetes tools (kubectl, helm, k9s)
-  - Infrastructure tools (Terraform, Ansible)
-  - Monitoring tools (Prometheus, Grafana)
-  - Development databases (PostgreSQL, Redis)
+| Host | Role | Architecture | Boot | Container Runtime |
+|------|------|-------------|------|------------------|
+| **ec2-controlplane** | K8s Control Plane | ARM64 | UEFI | CRI-O |
+| **ec2-jenkins** | CI/CD + VPN Server | ARM64 | UEFI | Docker |
+| **laptop-ultra** | Dev Workstation | x86_64 | UEFI | CRI-O |
+| **laptop-old** | Worker Node | x86_64 | BIOS | CRI-O |
 
-### LaptopB - Server/Production Workstation  
-- **Purpose**: Server-oriented environment for production services
-- **Features**:
-  - Minimal desktop environment
-  - Nginx reverse proxy
-  - Production monitoring (Prometheus, Grafana, Node Exporter)
-  - Docker with production settings
-  - PostgreSQL and Redis servers
-  - Enhanced security (Fail2ban, AppArmor)
-  - Server management tools
+## Technology Stack
 
-## Initial Setup
+- **Kubernetes**: kubeadm + Flannel CNI + CRI-O runtime
+- **VPN**: Headscale (server) + Tailscale (clients)
+- **CI/CD**: Jenkins with Docker builds
+- **Monitoring**: Prometheus + Node Exporter
+- **Boot**: UEFI (systemd-boot) or BIOS (GRUB)
 
-### 1. Hardware Configuration
-Before applying configurations, generate hardware-specific settings:
+## Quick Start
+
+### 1. Build and Deploy
 
 ```bash
-# On target machine
-sudo nixos-generate-config --root /mnt
+# Build locally
+sudo nixos-rebuild switch --flake .#laptop-ultra
+sudo nixos-rebuild switch --flake .#laptop-old
 
-# Copy the generated hardware-configuration.nix to appropriate host directory
-cp /mnt/etc/nixos/hardware-configuration.nix hosts/laptopA/
+# Deploy remotely
+nixos-rebuild switch --flake .#ec2-controlplane --target-host root@controlplane
+nixos-rebuild switch --flake .#ec2-jenkins --target-host root@jenkins
 ```
 
-### 2. Update Hardware Configuration Files
-Edit the hardware-configuration.nix files in each host directory and replace the placeholder UUIDs with actual values from your system.
+### 2. Initialize Kubernetes
 
-### 3. SSH Keys Setup
-Add your SSH public keys to the user configuration:
+**Control Plane** (automatically via systemd):
+```bash
+sudo systemctl status kubeadm-init
+sudo journalctl -u kubeadm-init -f
+```
+
+**Join Workers**:
+```bash
+# On control plane
+sudo kubeadm token create --print-join-command
+
+# Run the join command on worker nodes
+```
+
+### 3. Setup VPN
+
+**Headscale Server** (on ec2-jenkins):
+```bash
+headscale users create homelab
+headscale --user homelab preauthkeys create --reusable --expiration 24h
+```
+
+**Tailscale Clients**:
+```bash
+sudo tailscale up --login-server=https://headscale.yourdomain.com --authkey=YOUR_KEY
+```
+
+## Configuration Philosophy
+
+Each `configuration.nix` explicitly imports all required modules:
 
 ```nix
-# In hosts/*/configuration.nix
-openssh.authorizedKeys.keys = [
-  "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... your-key-here duck@homelab"
-];
+{
+  imports = [
+    ./hardware-configuration.nix
+    ../../modules/common/base.nix          # System basics
+    ../../modules/common/users.nix         # User accounts
+    ../../modules/common/boot-uefi.nix     # Boot configuration
+    ../../modules/roles/control-plane.nix  # Role-specific config
+    ../../modules/roles/tailscale-client.nix # VPN client
+  ];
+  
+  # Host-specific overrides
+  networking.hostName = "my-host";
+  boot.loader.grub.device = "/dev/sda";  # BIOS only
+}
 ```
 
-## Building and Deploying
+**Benefits:**
+- Each host configuration is self-contained
+- No hidden dependencies via flake injections
+- Clear module hierarchy
+- Easy to understand and maintain
 
-### Local Build and Switch
-```bash
-# Build and switch to new configuration
-sudo nixos-rebuild switch --flake .#laptopA
-
-# For laptopB
-sudo nixos-rebuild switch --flake .#laptopB
-```
-
-### Remote Deployment
-```bash
-# Deploy to remote machine
-nixos-rebuild switch --flake .#laptopA --target-host duck@laptopA.homelab.local
-
-# With sudo privileges
-nixos-rebuild switch --flake .#laptopB --target-host duck@laptopB.homelab.local --use-remote-sudo
-```
-
-### Home Manager
-```bash
-# Switch Home Manager configuration
-home-manager switch --flake .#duck@laptopA
-
-# For laptopB
-home-manager switch --flake .#duck@laptopB
-```
-
-## Development Shell
-
-Enter a development environment with all homelab tools:
-
-```bash
-nix develop
-# or
-nix shell
-```
-
-This provides access to:
-- Terraform
-- Ansible  
-- kubectl and Kubernetes tools
-- Docker tools
-- Monitoring clients
-- Text processing tools (jq, yq)
-
-## Customization
-
-### Adding Packages
-1. **System packages**: Add to `commonPackages` in `flake.nix` or to individual host configurations
-2. **User packages**: Add to `home.packages` in respective `home.nix` files
-
-### Environment Variables
-Set in the host configuration:
-```nix
-environment.variables = {
-  CUSTOM_VAR = "value";
-};
-```
-
-### Services
-Enable services in host configurations:
-```nix
-services.myservice = {
-  enable = true;
-  # configuration options
-};
-```
-
-## Maintenance
+## Common Operations
 
 ### Updates
 ```bash
-# Update flake inputs
 nix flake update
-
-# Update specific input
-nix flake update nixpkgs
-
-# Rebuild with updates
-sudo nixos-rebuild switch --flake .#laptopA
+sudo nixos-rebuild switch --flake .#hostname
 ```
 
 ### Cleanup
 ```bash
-# Clean up old generations (run regularly)
 sudo nix-collect-garbage -d
-
-# Clean up boot entries
-sudo /run/current-system/bin/switch-to-configuration boot
 ```
 
-### Backup
+### Troubleshooting
 ```bash
-# Backup current configuration
-cp -r /etc/nixos ~/backups/nixos-$(date +%Y%m%d)
+# Test without switching
+sudo nixos-rebuild test --flake .#hostname
 
-# Or use the built-in backup function (laptopB)
-homelab-backup
-```
-
-## Security Considerations
-
-### LaptopA (Development)
-- Firewall configured with development ports
-- Sudo without password for development convenience
-- Docker access for user
-
-### LaptopB (Server)
-- Restrictive firewall configuration
-- Fail2ban for SSH protection
-- AppArmor enabled
-- Sudo requires password
-- SSH hardening enabled
-
-## Troubleshooting
-
-### Boot Issues
-```bash
-# Boot into previous generation
-# Select older generation from bootloader menu
-
-# Or rollback
-sudo nixos-rebuild --rollback switch
-```
-
-### Configuration Issues
-```bash
-# Test configuration without switching
-sudo nixos-rebuild test --flake .#laptopA
-
-# Build without switching
-sudo nixos-rebuild build --flake .#laptopA
-```
-
-### Debugging
-```bash
 # Check what will be built
-nix build .#nixosConfigurations.laptopA.config.system.build.toplevel --dry-run
+nix build .#nixosConfigurations.hostname.config.system.build.toplevel --dry-run
 
 # Verbose output
-sudo nixos-rebuild switch --flake .#laptopA --show-trace
+sudo nixos-rebuild switch --flake .#hostname --show-trace
 ```
 
-## Useful Commands
+## Module Details
 
-```bash
-# List installed packages
-nix-env -q
+### Common Modules
+- **base.nix**: Time zone, locale, networking, Nix settings
+- **users.nix**: `oriduckduck`, `remoteduckduck`, `duck` users
+- **security.nix**: Firewall, SSH hardening
+- **boot-*.nix**: UEFI (systemd-boot) or BIOS (GRUB) configurations
 
-# Search for packages
-nix search nixpkgs firefox
+### Role Modules
+- **control-plane.nix**: kubeadm init, Prometheus, Flannel
+- **worker-node.nix**: Desktop environment, development tools
+- **jenkins.nix**: CI/CD server with Docker builds
+- **headscale-server.nix**: VPN coordination server
+- **tailscale-client.nix**: VPN client with auto-connect
 
-# Check system configuration
-nix show-config
+## Security
 
-# View flake info
-nix flake show
+- SSH key-based authentication only
+- Firewall enabled by default
+- VPN-first networking with Tailscale
+- CRI-O security features for Kubernetes
+- Separate container runtimes (CRI-O for K8s, Docker for CI/CD)
 
-# Check flake metadata
-nix flake metadata
-```
+---
 
-## Integration with Homelab
-
-These configurations integrate with the broader homelab infrastructure:
-
-- **Jenkins**: Build agents can be configured on both hosts
-- **ArgoCD**: kubectl and cluster access configured
-- **Monitoring**: Prometheus exporters and Grafana dashboards
-- **Container Runtime**: Docker configured for CI/CD pipelines
-- **Infrastructure**: Terraform and Ansible for infrastructure management
-
-## Support
-
-For issues specific to this NixOS configuration:
-1. Check the NixOS manual: https://nixos.org/manual/
-2. NixOS options search: https://search.nixos.org/
-3. Home Manager options: https://mipmip.github.io/home-manager-option-search/
-4. Homelab documentation in `docs/` directory
+**Architecture**: Each host imports exactly what it needs • No complex flake magic • Clear dependencies

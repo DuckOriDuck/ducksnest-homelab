@@ -2,21 +2,7 @@
 
 {
   # Base configuration for all homelab hosts
-  
-  # Boot configuration
-  boot = {
-    loader = {
-      systemd-boot.enable = true;
-      efi.canTouchEfiVariables = true;
-      timeout = 3;
-    };
-    
-    # Enable kernel modules for containers
-    kernelModules = [ "kvm-intel" "kvm-amd" ];
-    
-    # Enable systemd in initrd for faster boot
-    initrd.systemd.enable = true;
-  };
+  # Note: Boot configuration moved to boot-uefi.nix or boot-bios.nix
 
   # Time and locale
   time.timeZone = "Asia/Seoul";
@@ -39,7 +25,7 @@
       experimental-features = [ "nix-command" "flakes" ];
       auto-optimise-store = true;
       allowed-users = [ "@wheel" ];
-      trusted-users = [ "root" "duck" ];
+      trusted-users = [ "root" "oriduckduck" "duck" ];
     };
     
     # Garbage collection

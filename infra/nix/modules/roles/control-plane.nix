@@ -5,16 +5,7 @@
   
   # Enable container runtime
   virtualisation = {
-    docker = {
-      enable = true;
-      enableOnBoot = true;
-      autoPrune = {
-        enable = true;
-        dates = "weekly";
-      };
-    };
-    
-    containerd = {
+    cri-o = {
       enable = true;
     };
   };
@@ -25,17 +16,12 @@
       allowedTCPPorts = [
         22     # SSH
         6443   # Kubernetes API server
-        2379   # etcd client requests
-        2380   # etcd peer communication
         10250  # kubelet API
         10251  # kube-scheduler
         10252  # kube-controller-manager
         10255  # kubelet read-only port
         8472   # Flannel VXLAN
         9090   # Prometheus
-        3000   # Grafana
-        8080   # ArgoCD (if using port-forward)
-        8443   # ArgoCD HTTPS
       ];
       allowedUDPPorts = [
         8472   # Flannel VXLAN
@@ -48,7 +34,6 @@
     # Container tools
     cri-o
     cri-tools
-    containerd
     
     # Kubernetes tools
     kubernetes
@@ -57,15 +42,12 @@
     kustomize
     k9s
     
-    # ArgoCD CLI
-    argocd
     
     # Network tools
     flannel
     
     # Monitoring and observability
     prometheus
-    grafana
     node_exporter
     
     # GitOps tools
@@ -76,14 +58,6 @@
   services = {
     # Kubernetes API server (configured via kubeadm/k3s)
     
-    # etcd database
-    etcd = {
-      enable = true;
-      dataDir = "/var/lib/etcd";
-      listenClientUrls = [ "http://127.0.0.1:2379" ];
-      listenPeerUrls = [ "http://127.0.0.1:2380" ];
-      advertiseClientUrls = [ "http://127.0.0.1:2379" ];
-    };
 
     # Prometheus monitoring
     prometheus = {
@@ -135,28 +109,7 @@
       ];
     };
 
-    # Grafana for visualization
-    grafana = {
-      enable = true;
-      settings = {
-        server = {
-          http_addr = "0.0.0.0";
-          http_port = 3000;
-          domain = "grafana.homelab.local";
-        };
-        
-        security = {
-          admin_user = "admin";
-          admin_password = "homelab123";
-        };
-      };
-    };
 
-    # Tailscale for secure networking
-    tailscale = {
-      enable = true;
-      useRoutingFeatures = "both";
-    };
   };
 
   # System tuning for Kubernetes

@@ -21,19 +21,6 @@
   # networking.proxy.default = "http://user:password@proxy:port/";
   # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
 
-  # Set static IP
-  networking = {
-    interfaces.wlp2 = {
-      ipv6.addresses = [{
-        address = "fe80::17f7:21b:cb23:8c47";
-        prefixLength = 64;
-      }];
-      ipv4.addresses = [{
-        address = "192.168.0.7";
-        prefixLength = 24;
-      }];
-    };
-  };
   # Enable networking
   networking.networkmanager.enable = true;
 

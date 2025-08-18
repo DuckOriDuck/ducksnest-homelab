@@ -5,16 +5,7 @@
   
   # Enable container runtime
   virtualisation = {
-    docker = {
-      enable = true;
-      enableOnBoot = true;
-      autoPrune = {
-        enable = true;
-        dates = "weekly";
-      };
-    };
-    
-    containerd = {
+    cri-o = {
       enable = true;
     };
   };
@@ -25,13 +16,6 @@
       allowedTCPPorts = [
         22     # SSH
         10250  # kubelet API
-        30000  # NodePort range start
-        32767  # NodePort range end
-        6443   # Kubernetes API server
-        2379   # etcd client requests
-        2380   # etcd peer communication
-        10251  # kube-scheduler
-        10252  # kube-controller-manager
         8472   # Flannel VXLAN
       ];
       allowedUDPPorts = [
@@ -48,7 +32,6 @@
     # Container tools
     cri-o
     cri-tools
-    containerd
     
     # Kubernetes tools
     kubernetes
@@ -78,11 +61,6 @@
       ];
     };
 
-    # Tailscale for secure networking
-    tailscale = {
-      enable = true;
-      useRoutingFeatures = "both";
-    };
   };
 
   # System tuning for Kubernetes
