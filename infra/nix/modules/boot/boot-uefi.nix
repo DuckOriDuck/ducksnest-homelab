@@ -12,8 +12,5 @@
     
     # Enable systemd in initrd for faster boot
     initrd.systemd.enable = true;
-    
-    # Enable kernel modules for virtualization
-    kernelModules = [ "kvm-intel" "kvm-amd" ];
   };
 }

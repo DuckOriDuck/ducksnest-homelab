@@ -43,17 +43,6 @@
       HandleLidSwitchDocked=ignore
       IdleAction=ignore
     '';
-
-    # Desktop environment for worker node
-    xserver = {
-      enable = true;
-      displayManager.gdm.enable = true;
-      desktopManager.gnome.enable = true;
-      xkb = {
-        layout = "us";
-        variant = "";
-      };
-    };
   };
 
   # Environment variables for worker node

@@ -13,8 +13,5 @@
       };
       timeout = 3;
     };
-    
-    # Enable kernel modules for virtualization  
-    kernelModules = [ "kvm-intel" "kvm-amd" ];
   };
 }
