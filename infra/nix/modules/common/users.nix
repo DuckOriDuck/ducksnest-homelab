@@ -55,7 +55,6 @@
   # Security configuration
   security.sudo = {
     enable = true;
-    # Individual hosts can override wheelNeedsPassword
     wheelNeedsPassword = true;  # Default: require password
   };
 }

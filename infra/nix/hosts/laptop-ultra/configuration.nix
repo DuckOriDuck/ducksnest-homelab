@@ -91,7 +91,7 @@
   # Development-friendly security
   security.sudo = {
     enable = true;
-    wheelNeedsPassword = false;  # Convenience for development
+    wheelNeedsPassword = true;
   };
 
   # Environment variables for development worker node
