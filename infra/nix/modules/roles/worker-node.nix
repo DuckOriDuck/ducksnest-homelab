@@ -42,7 +42,7 @@
     flannel
     
     # Monitoring
-    node_exporter
+    prometheus-node-exporter
   ];
 
   # Services for worker nodes

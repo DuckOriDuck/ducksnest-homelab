@@ -48,7 +48,7 @@
     
     # Monitoring and observability
     prometheus
-    node_exporter
+    prometheus-node-exporter
     
     # GitOps tools
     git
