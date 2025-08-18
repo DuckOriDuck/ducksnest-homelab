@@ -80,19 +80,8 @@
       };
     };
     
-    # Audio for development environment
-    pipewire = {
-      enable = true;
-      alsa.enable = true;
-      pulse.enable = true;
-    };
-    
   };
 
-  # Audio configuration
-  sound.enable = true;
-  hardware.pulseaudio.enable = false;
-  security.rtkit.enable = true;
 
   # Virtualization setup
   virtualisation = {
