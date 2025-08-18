@@ -52,6 +52,9 @@
     
     # GitOps tools
     git
+
+    # extra
+    fastfetchMinimal
   ];
 
   # Services for control plane

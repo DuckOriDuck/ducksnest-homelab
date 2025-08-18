@@ -46,6 +46,9 @@
 
     # git
     git
+
+    #extra
+    fastfetchMinimal
   ];
 
   # Services for worker nodes
