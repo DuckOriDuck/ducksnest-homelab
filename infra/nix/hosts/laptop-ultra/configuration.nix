@@ -87,24 +87,6 @@
       pulse.enable = true;
     };
     
-    # Development databases
-    postgresql = {
-      enable = true;
-      ensureDatabases = [ "homelab_dev" ];
-      ensureUsers = [
-        {
-          name = "duck";
-          ensurePermissions = {
-            "DATABASE homelab_dev" = "ALL PRIVILEGES";
-          };
-        }
-      ];
-    };
-    
-    redis.servers."dev" = {
-      enable = true;
-      port = 6379;
-    };
   };
 
   # Audio configuration
