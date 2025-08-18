@@ -10,7 +10,7 @@
       PasswordAuthentication = false;
       KbdInteractiveAuthentication = false;
       X11Forwarding = false;
-      AllowUsers = [ "duck" ];
+      AllowUsers = [ "duck" "oriduckduck" "remoteduckduck" ];
       ClientAliveInterval = 300;
       ClientAliveCountMax = 2;
     };

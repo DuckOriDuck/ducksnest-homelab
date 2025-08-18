@@ -26,14 +26,6 @@
     "intel_pstate=active"
   ];
 
-  # Worker node specific packages
-  environment.systemPackages = with pkgs; [
-    # GUI tools for worker node
-    lens  # Kubernetes IDE
-    remmina
-    tigervnc
-  ];
-
   # Services specific to worker node
   services = {
     # OpenSSH daemon
