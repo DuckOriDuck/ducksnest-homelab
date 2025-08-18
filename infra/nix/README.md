@@ -97,7 +97,7 @@ Each `configuration.nix` explicitly imports all required modules:
     ./hardware-configuration.nix
     ../../modules/common/base.nix          # System basics
     ../../modules/common/users.nix         # User accounts
-    ../../modules/common/boot-uefi.nix     # Boot configuration
+    ../../modules/boot/boot-uefi.nix     # Boot configuration
     ../../modules/roles/control-plane.nix  # Role-specific config
     ../../modules/roles/tailscale-client.nix # VPN client
   ];
