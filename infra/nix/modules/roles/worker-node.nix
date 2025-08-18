@@ -43,6 +43,9 @@
     
     # Monitoring
     prometheus-node-exporter
+
+    # git
+    git
   ];
 
   # Services for worker nodes
