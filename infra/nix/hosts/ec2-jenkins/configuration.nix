@@ -6,7 +6,7 @@
     ../../modules/common/base.nix
     ../../modules/common/security.nix
     ../../modules/common/users.nix
-    ../../modules/common/boot-uefi.nix
+    ../../modules/boot/boot-uefi.nix
     ../../modules/roles/jenkins.nix
     ../../modules/roles/headscale-server.nix
   ];

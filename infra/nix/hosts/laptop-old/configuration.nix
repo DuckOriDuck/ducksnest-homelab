@@ -7,7 +7,7 @@
     ../../modules/common/base.nix
     ../../modules/common/security.nix
     ../../modules/common/users.nix
-    ../../modules/common/boot-bios.nix
+    ../../modules/boot/boot-bios.nix
     ../../modules/roles/worker-node.nix
     ../../modules/roles/tailscale-client.nix
   ];
