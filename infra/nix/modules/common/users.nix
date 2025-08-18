@@ -31,7 +31,6 @@
         "networkmanager" 
         "wheel" 
         "docker" 
-        "libvirtd"
         "systemd-journal"
       ];
       

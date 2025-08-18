@@ -87,12 +87,6 @@
       pulse.enable = true;
     };
     
-    # Virtualization
-    libvirtd = {
-      enable = true;
-      qemu.ovmf.enable = true;
-    };
-    
     # Development databases
     postgresql = {
       enable = true;
