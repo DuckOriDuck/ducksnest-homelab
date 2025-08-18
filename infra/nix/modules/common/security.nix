@@ -1,7 +1,6 @@
 { config, pkgs, ... }:
 
 {
-  # Security configuration for all homelab hosts
 
   # SSH configuration
   services.openssh = {
@@ -33,7 +32,7 @@
   services.fail2ban = {
     enable = true;
     bantime = "1h";
-    findtime = "10m";
+    findtime = 600;
     maxretry = 3;
   };
 
