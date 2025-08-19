@@ -39,11 +39,16 @@ in {
       ip_prefixes = [ "100.64.0.0/10" ];
       disable_check_updates = true;
 
-      # SQLite(소규모) 선택
-      db_type = "sqlite3";
-      db_path = "${dataDir}/db.sqlite";
+      # Database configuration (new format)
+      database = {
+        type = "sqlite3";
+        sqlite = {
+          path = "${dataDir}/db.sqlite";
+        };
+      };
 
-      dns_config = {
+      # DNS configuration (new format)
+      dns = {
         override_local_dns = true;
         magic_dns = true;                 # tailscale MagicDNS
         base_domain = "tail.home";        # tailnet 내부 도메인 (예시)
