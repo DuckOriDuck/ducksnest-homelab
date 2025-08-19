@@ -47,5 +47,11 @@
         ec2-controlplane = mkNixosConfig "ec2-controlplane" hostSystems.ec2-controlplane;
         ec2-jenkins      = mkNixosConfig "ec2-jenkins"      hostSystems.ec2-jenkins;
       };
+
+      # Default packages for each system
+      packages = {
+        x86_64-linux.default = self.nixosConfigurations.laptop-ultra.config.system.build.toplevel;
+        aarch64-linux.default = self.nixosConfigurations.ec2-controlplane.config.system.build.toplevel;
+      };
     };
 }
