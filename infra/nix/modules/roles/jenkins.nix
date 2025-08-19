@@ -1,7 +1,7 @@
 { config, pkgs, ... }:
 
 {
-  # Jenkins and Headscale server configuration
+  # Jenkins server configuration
   
   # Network configuration
   networking = {
@@ -10,18 +10,11 @@
         22     # SSH
         8080   # Jenkins
         8090   # Jenkins agent
-        80     # HTTP (nginx proxy)
-        443    # HTTPS (nginx proxy)
-        8081   # Headscale
-        41641  # Tailscale/Headscale coordination
-      ];
-      allowedUDPPorts = [
-        41641  # Tailscale/Headscale
       ];
     };
   };
 
-  # System packages for Jenkins and Headscale
+  # System packages for Jenkins
   environment.systemPackages = with pkgs; [
     # Jenkins and CI/CD tools
     jenkins
@@ -41,15 +34,8 @@
     kubectl
     kubernetes-helm
     
-    # Networking tools
-    nginx
-    certbot
-    
     # Monitoring
     node_exporter
-    
-    # Database
-    postgresql
   ];
 
   # Services configuration
@@ -58,7 +44,7 @@
     jenkins = {
       enable = true;
       port = 8080;
-      listenAddress = "127.0.0.1";  # Behind nginx proxy
+      listenAddress = "0.0.0.0";
       
       # Java options for Jenkins
       extraJavaOptions = [
@@ -81,48 +67,6 @@
     };
 
 
-    # PostgreSQL for Jenkins and Headscale
-    postgresql = {
-      enable = true;
-      package = pkgs.postgresql_15;
-      enableTCPIP = true;
-      
-      ensureDatabases = [ "jenkins" ];
-      ensureUsers = [
-        {
-          name = "jenkins";
-          ensurePermissions = {
-            "DATABASE jenkins" = "ALL PRIVILEGES";
-          };
-        }
-      ];
-    };
-
-    # Nginx reverse proxy
-    nginx = {
-      enable = true;
-      recommendedOptimisation = true;
-      recommendedTlsSettings = true;
-      recommendedGzipSettings = true;
-      recommendedProxySettings = true;
-      
-      virtualHosts = {
-        "jenkins.homelab.local" = {
-          locations."/" = {
-            proxyPass = "http://127.0.0.1:8080";
-            extraConfig = ''
-              proxy_set_header Host $host;
-              proxy_set_header X-Real-IP $remote_addr;
-              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-              proxy_set_header X-Forwarded-Proto $scheme;
-              proxy_redirect http:// https://;
-              proxy_max_body_size 50m;
-            '';
-          };
-        };
-        
-      };
-    };
 
     # Node exporter for monitoring
     prometheus.exporters.node = {
@@ -137,17 +81,8 @@
         "loadavg"
       ];
     };
-    # Docker configuration for Jenkins agents
-    virtualisation.docker = {
-      enable = true;
-      enableOnBoot = true;
-      autoPrune = {
-        enable = true;
-        dates = "weekly";
-      };
-    };
   };
-  
+
   # Environment variables
   environment.variables = {
     JENKINS_HOME = "/var/lib/jenkins";
