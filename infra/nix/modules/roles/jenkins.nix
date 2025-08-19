@@ -35,7 +35,7 @@
     kubernetes-helm
     
     # Monitoring
-    node_exporter
+    prometheus-node-exporter
   ];
 
   # Services configuration
