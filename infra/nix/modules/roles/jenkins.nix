@@ -137,17 +137,17 @@
         "loadavg"
       ];
     };
-
-  # Docker configuration for Jenkins agents
-  virtualisation.docker = {
-    enable = true;
-    enableOnBoot = true;
-    autoPrune = {
+    # Docker configuration for Jenkins agents
+    virtualisation.docker = {
       enable = true;
-      dates = "weekly";
+      enableOnBoot = true;
+      autoPrune = {
+        enable = true;
+        dates = "weekly";
+      };
     };
   };
-
+  
   # Environment variables
   environment.variables = {
     JENKINS_HOME = "/var/lib/jenkins";
