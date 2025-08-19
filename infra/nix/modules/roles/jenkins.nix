@@ -138,21 +138,6 @@
       ];
     };
 
-    # SSH server with hardened configuration
-    openssh = {
-      enable = true;
-      settings = {
-        PermitRootLogin = "no";
-        PasswordAuthentication = false;
-        KbdInteractiveAuthentication = false;
-        X11Forwarding = false;
-        AllowUsers = [ "duck" ];
-        ClientAliveInterval = 300;
-        ClientAliveCountMax = 2;
-      };
-    };
-  };
-
   # Docker configuration for Jenkins agents
   virtualisation.docker = {
     enable = true;
