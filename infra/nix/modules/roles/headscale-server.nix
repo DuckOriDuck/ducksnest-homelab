@@ -94,8 +94,6 @@ in {
       ProtectSystem = "strict";
       ProtectHome = true;
       ReadWritePaths = [ dataDir ];
-      Restart = "on-failure";
-      RestartSec = 5;
     };
   };
 
