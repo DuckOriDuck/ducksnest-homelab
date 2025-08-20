@@ -16,8 +16,8 @@
       hostSystems = {
         laptop-old = "x86_64-linux";
         laptop-ultra = "x86_64-linux";
-        ec2-controlplane = "aarch64-linux";  # Graviton
-        ec2-jenkins = "aarch64-linux";       # Graviton
+        ec2-controlplane = "x86_64-linux";
+        ec2-jenkins      = "x86_64-linux"; 
       };
       
       # Overlay for unstable packages
@@ -59,13 +59,13 @@
         
         # EC2 AMI images (available on both x86_64 and aarch64)
         x86_64-linux.ec2-controlplane-ami = nixos-generators.nixosGenerate {
-          system = "aarch64-linux";
+          system  = "x86_64-linux";
           modules = [ ./hosts/ec2-controlplane/configuration.nix ];
           format = "amazon";
         };
         
         x86_64-linux.ec2-jenkins-ami = nixos-generators.nixosGenerate {
-          system = "aarch64-linux";
+          system  = "x86_64-linux";
           modules = [ ./hosts/ec2-jenkins/configuration.nix ];
           format = "amazon";
         };
