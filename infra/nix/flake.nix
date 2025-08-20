@@ -62,12 +62,14 @@
           system  = "x86_64-linux";
           modules = [ ./hosts/ec2-controlplane/configuration.nix ];
           format = "amazon";
+          diskSize = 8192;
         };
         
         x86_64-linux.ec2-jenkins-ami = nixos-generators.nixosGenerate {
           system  = "x86_64-linux";
           modules = [ ./hosts/ec2-jenkins/configuration.nix ];
           format = "amazon";
+          diskSize = 8192;
         };
       };
     };
