@@ -60,7 +60,7 @@
             {
               # nix.registry.nixpkgs.flake = nixpkgs;
               virtualisation.diskSize = 10 * 1024;
-            }
+            };
         # EC2 AMI images (available on both x86_64 and aarch64)
         x86_64-linux.ec2-controlplane-ami = nixos-generators.nixosGenerate {
           system  = "x86_64-linux";
