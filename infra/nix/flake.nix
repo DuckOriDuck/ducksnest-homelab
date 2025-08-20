@@ -61,18 +61,24 @@
         x86_64-linux.ec2-controlplane-ami = nixos-generators.nixosGenerate {
           system  = "x86_64-linux";
           modules = [ 
-                      {
-                        # nix.registry.nixpkgs.flake = nixpkgs;
-                        virtualisation.diskSize = 10 * 1024;
-                      }; 
-                      ./hosts/ec2-controlplane/configuration.nix 
-                    ];
+            {
+              # Set disk size for Amazon AMI (in MB)
+              amazonImage.sizeMB = 10 * 1024; # 10GB
+            }
+            ./hosts/ec2-controlplane/configuration.nix 
+          ];
           format = "amazon";
         };
         
         x86_64-linux.ec2-jenkins-ami = nixos-generators.nixosGenerate {
           system  = "x86_64-linux";
-          modules = [ ./hosts/ec2-jenkins/configuration.nix ];
+          modules = [ 
+            {
+              # Set disk size for Amazon AMI (in MB)
+              amazonImage.sizeMB = 10 * 1024; # 10GB
+            }
+            ./hosts/ec2-jenkins/configuration.nix 
+          ];
           format = "amazon";
         };
       };
