@@ -55,32 +55,10 @@
       # Default packages for each system
       packages = {
         x86_64-linux.default = self.nixosConfigurations.laptop-ultra.config.system.build.toplevel;
-        aarch64-linux.default = self.nixosConfigurations.ec2-controlplane.config.system.build.toplevel;
-        modules = [
-        # EC2 AMI images (available on both x86_64 and aarch64)
-        x86_64-linux.ec2-controlplane-ami = nixos-generators.nixosGenerate {
-          system  = "x86_64-linux";
-          modules = [ 
-            {
-              # Set disk size for Amazon AMI (in MB)
-              amazonImage.sizeMB = 10 * 1024; # 10GB
-            }
-            ./hosts/ec2-controlplane/configuration.nix 
-          ];
-          format = "amazon";
-        };
-        
-        x86_64-linux.ec2-jenkins-ami = nixos-generators.nixosGenerate {
-          system  = "x86_64-linux";
-          modules = [ 
-            {
-              # Set disk size for Amazon AMI (in MB)
-              amazonImage.sizeMB = 10 * 1024; # 10GB
-            }
-            ./hosts/ec2-jenkins/configuration.nix 
-          ];
-          format = "amazon";
-        };
+        x86_64-linux.laptop-old = self.nixosConfigurations.laptop-old.config.system.build.toplevel;
+        x86_64-linux.laptop-ultra = self.nixosConfigurations.laptop-ultra.config.system.build.toplevel;
+        x86_64-linux.ec2-controlplane = self.nixosConfigurations.ec2-controlplane.config.system.build.toplevel;
+        x86_64-linux.ec2-jenkins = self.nixosConfigurations.ec2-jenkins.config.system.build.toplevel;
       };
     };
 }
