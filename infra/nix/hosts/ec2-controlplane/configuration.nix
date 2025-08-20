@@ -36,19 +36,6 @@
   services = {
     # Override Grafana settings for control plane
     grafana.settings.server.domain = "grafana.homelab.ducksnest.com";
-    
-    # K3s control plane
-    k3s = {
-      enable = true;
-      role = "server";
-      extraFlags = [
-        "--disable=traefik"  # We'll use nginx ingress
-        "--disable=servicelb"
-        "--write-kubeconfig-mode=644"
-        "--cluster-init"
-        "--disable-cloud-controller"
-      ];
-    };
 
     # Time synchronization
     timesyncd = {
