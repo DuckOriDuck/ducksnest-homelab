@@ -4,9 +4,13 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixos-generators = {
+      url = "github:nix-community/nixos-generators";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-generators }:
     let
       # System architectures for each host
       hostSystems = {
@@ -52,6 +56,19 @@
       packages = {
         x86_64-linux.default = self.nixosConfigurations.laptop-ultra.config.system.build.toplevel;
         aarch64-linux.default = self.nixosConfigurations.ec2-controlplane.config.system.build.toplevel;
+        
+        # EC2 AMI images (available on both x86_64 and aarch64)
+        x86_64-linux.ec2-controlplane-ami = nixos-generators.nixosGenerate {
+          system = "aarch64-linux";
+          modules = [ ./hosts/ec2-controlplane/configuration.nix ];
+          format = "amazon";
+        };
+        
+        x86_64-linux.ec2-jenkins-ami = nixos-generators.nixosGenerate {
+          system = "aarch64-linux";
+          modules = [ ./hosts/ec2-jenkins/configuration.nix ];
+          format = "amazon";
+        };
       };
     };
 }
