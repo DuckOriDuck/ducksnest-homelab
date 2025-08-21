@@ -16,8 +16,8 @@
       hostSystems = {
         laptop-old = "x86_64-linux";
         laptop-ultra = "x86_64-linux";
-        ec2-controlplane = "x86_64-linux";
-        ec2-jenkins      = "x86_64-linux"; 
+        ec2-controlplane = "aarch64-linux";
+        ec2-jenkins      = "aarch64-linux"; 
       };
       
       # Overlay for unstable packages
@@ -57,8 +57,8 @@
         x86_64-linux.default = self.nixosConfigurations.laptop-ultra.config.system.build.toplevel;
         x86_64-linux.laptop-old = self.nixosConfigurations.laptop-old.config.system.build.toplevel;
         x86_64-linux.laptop-ultra = self.nixosConfigurations.laptop-ultra.config.system.build.toplevel;
-        x86_64-linux.ec2-controlplane = self.nixosConfigurations.ec2-controlplane.config.system.build.toplevel;
-        x86_64-linux.ec2-jenkins = self.nixosConfigurations.ec2-jenkins.config.system.build.toplevel;
+        aarch64-linux.ec2-controlplane = self.nixosConfigurations.ec2-controlplane.config.system.build.toplevel;
+        aarch64-linux.ec2-jenkins = self.nixosConfigurations.ec2-jenkins.config.system.build.toplevel;
       };
     };
 }
