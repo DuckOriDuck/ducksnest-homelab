@@ -1,0 +1,192 @@
+---
+# 공통 시스템 설정 플레이북
+
+- name: Common System Configuration
+  hosts: aws_instances
+  become: true
+  gather_facts: true
+  
+  tasks:
+    - name: Set hostname
+      hostname:
+        name: "{{ tailscale_hostname }}"
+      
+    - name: Update /etc/hosts
+      lineinfile:
+        path: /etc/hosts
+        line: "127.0.1.1 {{ tailscale_hostname }}"
+        regexp: "^127\\.0\\.1\\.1"
+        
+    - name: Set timezone
+      timezone:
+        name: "{{ timezone }}"
+        
+    - name: Update package cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+        
+    - name: Install common packages
+      apt:
+        name: "{{ common_packages }}"
+        state: present
+        
+    - name: Configure UFW default policies
+      ufw:
+        policy: "{{ item.policy }}"
+        direction: "{{ item.direction }}"
+      loop:
+        - { policy: "{{ ufw_default_incoming_policy }}", direction: "incoming" }
+        - { policy: "{{ ufw_default_outgoing_policy }}", direction: "outgoing" }
+        
+    - name: Configure UFW rules
+      ufw:
+        rule: "{{ item.rule }}"
+        port: "{{ item.port }}"
+        proto: "{{ item.proto | default('any') }}"
+      loop: "{{ ufw_rules }}"
+      when: ufw_rules is defined
+      
+    - name: Enable UFW
+      ufw:
+        state: enabled
+        
+    - name: Configure SSH hardening
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        backup: true
+      loop:
+        - { regexp: "^PermitRootLogin", line: "PermitRootLogin no" }
+        - { regexp: "^PasswordAuthentication", line: "PasswordAuthentication no" }
+        - { regexp: "^X11Forwarding", line: "X11Forwarding no" }
+        - { regexp: "^MaxAuthTries", line: "MaxAuthTries 3" }
+      notify: restart ssh
+      
+    - name: Configure system limits
+      lineinfile:
+        path: /etc/security/limits.conf
+        line: "{{ item }}"
+      loop:
+        - "* soft nofile 65536"
+        - "* hard nofile 65536"
+        - "* soft nproc 32768"
+        - "* hard nproc 32768"
+        
+    - name: Configure sysctl parameters
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        sysctl_set: true
+        reload: true
+      loop:
+        - { name: "vm.max_map_count", value: "262144" }
+        - { name: "fs.file-max", value: "65536" }
+        - { name: "net.core.somaxconn", value: "32768" }
+        
+    - name: Configure log rotation for common logs
+      copy:
+        content: |
+          /var/log/*.log {
+              daily
+              rotate {{ log_rotation_days }}
+              compress
+              delaycompress
+              missingok
+              notifempty
+              create 0644 root root
+              maxsize {{ max_log_size }}
+          }
+        dest: /etc/logrotate.d/homelab-common
+        
+    - name: Create homelab directory structure
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+      loop:
+        - /opt/homelab
+        - /opt/homelab/scripts
+        - /opt/homelab/configs
+        - /opt/homelab/logs
+        
+    - name: Install monitoring agent (node_exporter)
+      get_url:
+        url: "https://github.com/prometheus/node_exporter/releases/download/v1.8.2/node_exporter-1.8.2.linux-amd64.tar.gz"
+        dest: /tmp/node_exporter.tar.gz
+        mode: '0644'
+        
+    - name: Extract node_exporter
+      unarchive:
+        src: /tmp/node_exporter.tar.gz
+        dest: /tmp
+        remote_src: true
+        creates: /tmp/node_exporter-1.8.2.linux-amd64
+        
+    - name: Install node_exporter binary
+      copy:
+        src: /tmp/node_exporter-1.8.2.linux-amd64/node_exporter
+        dest: /usr/local/bin/node_exporter
+        mode: '0755'
+        owner: root
+        group: root
+        remote_src: true
+        
+    - name: Create node_exporter user
+      user:
+        name: node_exporter
+        system: true
+        shell: /bin/false
+        home: /var/lib/node_exporter
+        create_home: false
+        
+    - name: Create node_exporter systemd service
+      copy:
+        content: |
+          [Unit]
+          Description=Prometheus Node Exporter
+          After=network.target
+          
+          [Service]
+          Type=simple
+          User=node_exporter
+          Group=node_exporter
+          ExecStart=/usr/local/bin/node_exporter
+          Restart=always
+          RestartSec=3
+          
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/node_exporter.service
+      notify:
+        - reload systemd
+        - start node_exporter
+        
+    - name: Disable swap permanently
+      mount:
+        path: swap
+        fstype: swap
+        state: absent
+        
+    - name: Turn off swap
+      command: swapoff -a
+      changed_when: false
+      
+  handlers:
+    - name: restart ssh
+      systemd:
+        name: ssh
+        state: restarted
+        
+    - name: reload systemd
+      systemd:
+        daemon_reload: true
+        
+    - name: start node_exporter
+      systemd:
+        name: node_exporter
+        state: started
+        enabled: true
