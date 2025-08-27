@@ -43,14 +43,14 @@ nix/
 ### Remote Build & Deploy from GitHub
 
 ```bash
-# Using specific user, repository, branch, and path
-sudo nixos-rebuild switch --flake github:DuckOriDuck/ducksnest-homelab/infra/nix#laptop-ultra
+# GitHub flakes need dir= parameter when flake.nix is in subdirectory
+sudo nixos-rebuild switch --flake github:DuckOriDuck/ducksnest-homelab?dir=infra/nix#laptop-ultra
 
 # Using different branch
-sudo nixos-rebuild switch --flake github:DuckOriDuck/ducksnest-homelab/main/infra/nix#laptop-old
+sudo nixos-rebuild switch --flake github:DuckOriDuck/ducksnest-homelab/main?dir=infra/nix#laptop-old
 
 # Test build without applying
-sudo nixos-rebuild build --flake github:DuckOriDuck/ducksnest-homelab/infra/nix#laptop-ultra
+sudo nixos-rebuild build --flake github:DuckOriDuck/ducksnest-homelab?dir=infra/nix#laptop-ultra
 ```
 
 ### Local Development
