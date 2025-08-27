@@ -37,3 +37,60 @@ nix/
 | ~~**ec2-jenkins**~~ | ~~CI/CD + VPN Server~~ | ~~ARM64~~ | ~~UEFI~~ | ~~Docker~~ (DEPRECATED) |
 | **laptop-ultra** | Dev Workstation | x86_64 | UEFI | CRI-O |
 | **laptop-old** | Worker Node | x86_64 | BIOS | CRI-O |
+
+## Usage
+
+### Remote Build & Deploy from GitHub
+
+```bash
+# Using specific user, repository, branch, and path
+sudo nixos-rebuild switch --flake github:DuckOriDuck/ducksnest-homelab/infra/nix#laptop-ultra
+
+# Using different branch
+sudo nixos-rebuild switch --flake github:DuckOriDuck/ducksnest-homelab/main/infra/nix#laptop-old
+
+# Test build without applying
+sudo nixos-rebuild build --flake github:DuckOriDuck/ducksnest-homelab/infra/nix#laptop-ultra
+```
+
+### Local Development
+
+```bash
+# Clone and build locally
+git clone https://github.com/DuckOriDuck/ducksnest-homelab.git
+cd ducksnest-homelab/infra/nix
+
+# Build specific host
+sudo nixos-rebuild switch --flake .#laptop-ultra
+
+# Test build without applying
+sudo nixos-rebuild build --flake .#laptop-ultra
+
+# Build all hosts to verify
+nix flake check
+```
+
+### Validation & Testing
+
+```bash
+# Check all configurations build successfully
+nix flake check
+
+# Build specific host without applying
+nix build .#nixosConfigurations.laptop-ultra.config.system.build.toplevel
+
+# Build all hosts
+nix build .#nixosConfigurations.laptop-ultra.config.system.build.toplevel
+nix build .#nixosConfigurations.laptop-old.config.system.build.toplevel
+
+# Show flake info
+nix flake show
+
+# Update flake inputs
+nix flake update
+```
+
+### Host Selection
+
+- `laptop-ultra`: Development workstation with full features
+- `laptop-old`: Minimal worker node configuration
