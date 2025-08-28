@@ -15,14 +15,6 @@ in {
   # 라우팅 기능: 제어 트래픽 위주이면 both 필요 없음. 필요 시 "both"
   services.tailscale = {
     enable = true;
-    useRoutingFeatures = "client";
-    extraUpFlags = [
-      "--login-server=${loginServer}"
-      "--accept-dns=true"
-      "--accept-routes=true"
-      # 인증키를 env로 주입
-      "--authkey=file:${envFile}:TS_AUTHKEY"
-    ];
   };
 
   # 비부팅 시 자동 연결
