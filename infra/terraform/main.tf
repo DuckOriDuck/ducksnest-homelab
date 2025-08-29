@@ -7,6 +7,15 @@ terraform {
       version = "~> 6.0"
     }
   }
+  
+  backend "s3" {
+    bucket         = "ducksnest-terraform-state"
+    key            = "homelab/terraform.tfstate"
+    region         = "ap-northeast-2"
+    encrypt        = true
+    kms_key_id     = "alias/ducksnest-terraform-state-key"
+    dynamodb_table = "ducksnest-terraform-locks"
+  }
 }
 
 provider "aws" {
