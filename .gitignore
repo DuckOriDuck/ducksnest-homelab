@@ -28,6 +28,7 @@ Thumbs.db
 **/.vault_pass
 **/host_vars/*.vault
 **/group_vars/*.vault
+**/.venv/
 
 # SSH Keys
 *.pem
