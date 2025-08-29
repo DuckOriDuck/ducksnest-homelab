@@ -82,6 +82,8 @@ sleep 10
 TAILSCALE_IP=$(tailscale ip -4)
 echo "Tailscale connected with IP: $TAILSCALE_IP"
 
+tailscale funnel 8080
+tailscale funnel status
 
 # Install Docker (Auto-detect ARM64/AMD64)
 DOCKER_ARCH=$(dpkg --print-architecture)
