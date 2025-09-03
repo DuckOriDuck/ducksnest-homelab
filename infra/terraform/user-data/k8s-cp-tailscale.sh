@@ -85,22 +85,16 @@ sleep 10
 TAILSCALE_IP=$(tailscale ip -4)
 echo "Tailscale connected with IP: $TAILSCALE_IP"
 
-
-# Configure time synchronization
-timedatectl set-timezone Asia/Seoul
-systemctl enable systemd-timesyncd
-systemctl start systemd-timesyncd
-
 # Disable swap
 swapoff -a
 sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+
 
 # Load kernel modules
 cat > /etc/modules-load.d/k8s.conf << EOF
 overlay
 br_netfilter
 EOF
-
 
 modprobe overlay
 modprobe br_netfilter
