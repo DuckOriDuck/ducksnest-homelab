@@ -91,20 +91,23 @@ jobs:
           script: |
             const fs = require('fs');
             const planOutput = fs.readFileSync('${{ env.TERRAFORM_DIR }}/plan.txt', 'utf8');
-            const maxLength = 65536; // GitHub comment max length
-            const truncatedPlan = planOutput.length > maxLength 
-              ? planOutput.substring(0, maxLength - 100) + '\n...(truncated)' 
-              : planOutput;
             
-            const comment = `## Terraform Plan Results
+            // Extract summary information only
+            const lines = planOutput.split('\n');
+            const planSummary = lines.filter(line => 
+              line.includes('Plan:') || 
+              line.includes('Error:') || 
+              line.includes('Warning:') ||
+              line.includes('Changes to Outputs:')
+            ).join('\n');
             
-            \`\`\`hcl
-            ${truncatedPlan}
-            \`\`\`
+            const comment = `## Terraform Plan Summary
+            
+            ${planSummary || 'No changes detected'}
             
             **Plan Status:** ${{ steps.plan.outcome == 'success' && 'Success' || 'Failed' }}
             **Commit:** ${{ github.sha }}
-            **Workflow:** [${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+            **Full Details:** [View Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
             
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -113,7 +116,7 @@ jobs:
             });
             
             const botComment = comments.find(comment => 
-              comment.user.type === 'Bot' && comment.body.includes('Terraform Plan Results')
+              comment.user.type === 'Bot' && comment.body.includes('Terraform Plan Summary')
             );
             
             if (botComment) {
