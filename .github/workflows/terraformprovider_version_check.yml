@@ -36,8 +36,7 @@ jobs:
     defaults:
       run:
         working-directory: ${{ env.TERRAFORM_DIR }}
-
-    steps:  # ← defaults와 같은 깊이여야 합니다
+    steps:
       - name: 📥 Checkout
         uses: actions/checkout@v4
 
