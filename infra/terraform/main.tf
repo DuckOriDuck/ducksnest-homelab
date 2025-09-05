@@ -7,7 +7,7 @@ terraform {
       version = "~> 6.0"
     }
   }
-  
+
   backend "s3" {
     bucket         = "ducksnest-terraform-state"
     key            = "homelab/terraform.tfstate"
@@ -22,7 +22,7 @@ provider "aws" {
   region = var.aws_region
 }
 
-                  
+
 # AMI
 data "aws_ami" "ubuntu" {
   most_recent = true
@@ -62,12 +62,12 @@ resource "aws_iam_instance_profile" "k8s_cp_profile" {
 
 # EC2 Instances
 resource "aws_instance" "k8s_control_plane" {
-  ami                  = data.aws_ami.ubuntu.id
-  instance_type        = "t4g.medium"
-  key_name             = var.key_name
-  subnet_id            = aws_subnet.public_c.id
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = "t4g.medium"
+  key_name               = var.key_name
+  subnet_id              = aws_subnet.public_c.id
   vpc_security_group_ids = [aws_security_group.strict_egress.id]
-  iam_instance_profile = aws_iam_instance_profile.k8s_cp_profile.name
+  iam_instance_profile   = aws_iam_instance_profile.k8s_cp_profile.name
 
   root_block_device {
     volume_type = "gp3"
@@ -76,14 +76,14 @@ resource "aws_instance" "k8s_control_plane" {
   }
 
   user_data = templatefile("./user-data/k8s-cp-tailscale.sh", {
-    hostname = "cp-1",
+    hostname   = "ducksnest-cp",
     aws_region = var.aws_region
   })
 
   tags = {
-    Name = "ducksnest-k8s-control-plane"
-    Environment = "homelab"
-    Role = "k8s-control-plane"
+    Name          = "ducksnest-k8s-control-plane"
+    Environment   = "homelab"
+    Role          = "k8s-control-plane"
     Ansible_Group = "k8s_control_plane"
   }
 }
