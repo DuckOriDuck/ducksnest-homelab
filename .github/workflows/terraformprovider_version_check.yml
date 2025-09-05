@@ -1,0 +1,89 @@
+name: Terraform version and provider checker
+
+on:
+  pull_request:
+    paths:
+      - 'infra/terraform/**'
+      - '.github/workflows/terraform.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/terraform/**'
+      - '.github/workflows/terraform.yml'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Terraform action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+env:
+  TF_VERSION: '1.13.1'
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  TERRAFORM_DIR: 'infra/terraform'
+  
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  terraform-validate-and-plan:
+    name: Terraform Validation & Plan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.TERRAFORM_DIR }}
+    
+        steps:
+          - name: 📥 Checkout
+            uses: actions/checkout@v4
+
+          - name: 🏗️ Setup Terraform
+            uses: hashicorp/setup-terraform@v3
+            with:
+              terraform_version: ${{ env.TF_VERSION }}
+
+            # (선택) 플러그인/모듈 캐시로 속도 개선
+          - name: ⚡ Cache Terraform plugins
+            uses: actions/cache@v4
+            with:
+              path: |
+                ~/.terraform.d/plugin-cache
+                ${{ env.TERRAFORM_DIR }}/.terraform
+            key: ${{ runner.os }}-tf-${{ env.TF_VERSION }}-${{ hashFiles('**/.terraform.lock.hcl') }}
+          - name: 🔧 Set plugin cache dir
+            run: echo "TF_PLUGIN_CACHE_DIR=$HOME/.terraform.d/plugin-cache" >> $GITHUB_ENV
+
+          - name: 🔎 Terraform Version
+            run: terraform version
+
+          - name: 🔎 Required Providers (from config)
+            run: terraform providers
+
+          # 락파일이 없거나 버전이 어긋나면 실패하게 강제
+          - name: 🧱 Init (no backend, lockfile enforced)
+            run: |
+              if [ ! -f ".terraform.lock.hcl" ]; then
+                echo "::error::.terraform.lock.hcl is missing. Run 'terraform init' locally and commit the lockfile."
+                exit 1
+              fi
+              terraform init -backend=false -input=false -lockfile=readonly
+
+          - name: 🔐 Print locked provider versions
+            run: |
+              echo "--------- .terraform.lock.hcl (providers) ----------"
+              awk '/^provider /,/^}/' .terraform.lock.hcl || true
+              echo "----------------------------------------------------"
+
+      - name: ✅ Terraform Validate
+        run: terraform validate
+
+      # 필요시, 실제 플랜 없이도 의존성/버전만 검증 완료
+      # - name: 📋 Terraform Plan (dry - backend disabled)
+      #   run: terraform plan -input=false -lock=false -refresh=false -no-color
