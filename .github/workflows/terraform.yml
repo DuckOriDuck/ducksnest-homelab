@@ -26,6 +26,11 @@ env:
   TF_VERSION: '1.13.1'
   AWS_REGION: ${{ vars.AWS_REGION }}
   TERRAFORM_DIR: 'infra/terraform'
+  
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
 
 jobs:
   terraform-validate-and-plan:
