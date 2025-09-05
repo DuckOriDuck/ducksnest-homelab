@@ -6,7 +6,7 @@ on:
       - 'infra/terraform/**'
       - '.github/workflows/terraform.yml'
   push:
-    branches: [main]
+    branches: [terrform_version_checker]
     paths:
       - 'infra/terraform/**'
       - '.github/workflows/terraform.yml'
