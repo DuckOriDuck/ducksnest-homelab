@@ -24,7 +24,7 @@ on:
 
 env:
   TF_VERSION: '1.13.1'
-  AWS_REGION: 'ap-northeast-2'
+  AWS_REGION: ${{ variables.AWS_REGION }}
   TERRAFORM_DIR: 'infra/terraform'
 
 jobs:
@@ -47,7 +47,7 @@ jobs:
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Format Check
@@ -148,7 +148,7 @@ jobs:
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init
