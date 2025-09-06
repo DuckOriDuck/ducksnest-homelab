@@ -189,41 +189,11 @@ jobs:
           path: ${{ env.TERRAFORM_DIR }}/terraform-outputs.json
           retention-days: 30
 
-  terraform-destroy-on-failure:
-    name: Destroy on Failure
-    runs-on: ubuntu-latest
-    needs: [terraform-apply]
-    if: needs.terraform-apply.result == 'failure'
-    defaults:
-      run:
-        working-directory: ${{ env.TERRAFORM_DIR }}
-    
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Configure AWS Credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Terraform Init
-        run: terraform init
-
-      - name: Terraform Destroy
-        run: terraform destroy -auto-approve -no-color
-
   notify:
     name: Notify Results
     runs-on: ubuntu-latest
-    needs: [terraform-apply, terraform-destroy-on-failure]
-    if: always()
+    needs: [terraform-apply]
+    if: always() && (needs.terraform-apply.result == 'success' || needs.terraform-apply.result == 'failure')
     
     steps:
       - name: Deployment Status
@@ -231,9 +201,6 @@ jobs:
           if [[ "${{ needs.terraform-apply.result }}" == "success" ]]; then
             echo "Terraform deployment completed successfully!"
             echo "Infrastructure changes have been applied to AWS."
-          elif [[ "${{ needs.terraform-destroy-on-failure.result }}" == "success" ]]; then
-            echo "Terraform apply failed, but destroy completed successfully!"
-            echo "Infrastructure has been cleaned up."
           else
             echo "Terraform deployment failed!"
             echo "Please check the logs and fix any issues."
