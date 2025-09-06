@@ -1,6 +1,6 @@
 # Ubuntu 24.04 LTS based EC2 instances
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.13"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -39,25 +39,9 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-# SSM setting
-data "aws_iam_role" "existing_ssm_role" {
-  name = "ec2-role-for-ssm"
-}
-
-# Tailscale secret access roles
-data "aws_iam_role" "cp_role" {
+# Needed Roles for CP
+data "aws_iam_instance_profile" "k8s_cp_profile" {
   name = "homelab-cp-role"
-}
-
-# Create instance profiles
-resource "aws_iam_instance_profile" "ec2_ssm_profile" {
-  name = "ducksnest-ec2-ssm-profile"
-  role = data.aws_iam_role.existing_ssm_role.name
-}
-
-resource "aws_iam_instance_profile" "k8s_cp_profile" {
-  name = "ducksnest-k8s-cp-profile"
-  role = data.aws_iam_role.cp_role.name
 }
 
 # EC2 Instances
@@ -67,7 +51,7 @@ resource "aws_instance" "k8s_control_plane" {
   key_name               = var.key_name
   subnet_id              = aws_subnet.public_c.id
   vpc_security_group_ids = [aws_security_group.strict_egress.id]
-  iam_instance_profile   = aws_iam_instance_profile.k8s_cp_profile.name
+  iam_instance_profile   = data.aws_iam_instance_profile.k8s_cp_profile.name
 
   root_block_device {
     volume_type = "gp3"
