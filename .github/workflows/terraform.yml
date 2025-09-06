@@ -73,16 +73,8 @@ jobs:
       - name: Terraform Plan
         id: plan
         run: |
-          terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
+          terraform plan -no-color 2>&1 | tee plan.txt
 
-      - name: Upload Plan Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-plan
-          path: |
-            ${{ env.TERRAFORM_DIR }}/tfplan
-            ${{ env.TERRAFORM_DIR }}/plan.txt
-          retention-days: 5
 
       - name: Comment PR with Plan
         if: github.event_name == 'pull_request'
@@ -162,12 +154,6 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
-      - name: Download Plan Artifact
-        if: github.event_name == 'push'
-        uses: actions/download-artifact@v4
-        with:
-          name: terraform-plan
-          path: ${{ env.TERRAFORM_DIR }}
 
       - name: Terraform Apply
         id: apply
@@ -186,12 +172,8 @@ jobs:
                 ;;
             esac
           else
-            # Push to main branch - apply the plan
-            if [[ -f "tfplan" ]]; then
-              terraform apply -no-color tfplan
-            else
-              terraform apply -auto-approve -no-color
-            fi
+            # Push to main branch - generate fresh plan and apply
+            terraform apply -auto-approve -no-color
           fi
 
       - name: Terraform Output
