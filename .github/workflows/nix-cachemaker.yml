@@ -1,0 +1,33 @@
+name: Nix Cache S3 test
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: "infra/nix"
+    permissions:
+      id-token: "write"
+      contents: "read"
+    steps:
+      - name: set nix env w/DeteminateSystems
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: DeterminateSystems/flake-checker-action@main
+      
+      - name: Run `nix build ec2-controlplane`
+        run: nix build .#ec2-controlplane
+        
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          aws-region: ${{ vars.AWS_REGION }}
+          
+      - name: Upload to S3 Nix cache
+        shell: bash
+        run: |
+          nix copy --to "s3://ducksnest-nix-cache?region=${{ vars.AWS_REGION }}" .#ec2-controlplane
