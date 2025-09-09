@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  check:
+  nix-build-n-upload:
     runs-on: ubuntu-22.04
     defaults:
       run:
@@ -16,7 +16,11 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: DeterminateSystems/magic-nix-cache-action@main
       - uses: DeterminateSystems/flake-checker-action@main
-      
+
+      - name: load prior cache
+        run: |
+          nix copy --from "s3://ducksnest-nix-cache?region=${{ vars.AWS_REGION }}"
+        
       - name: Run `nix build ec2-controlplane`
         run: nix build .#ec2-controlplane
         
