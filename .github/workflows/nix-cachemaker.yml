@@ -24,8 +24,8 @@ jobs:
     
       - name: load prior cache
         run: |
-          nix copy --from "s3://ducksnest-nix-cache?region=${{ vars.AWS_REGION }}"
-        
+          nix copy --all --from "s3://ducksnest-nix-cache?region=${{ vars.AWS_REGION }}" --no-check-sigs
+          
       - name: Run `nix build ec2-controlplane`
         run: nix build .#ec2-controlplane
           
