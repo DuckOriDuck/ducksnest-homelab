@@ -10,65 +10,95 @@
     };
   };
 
-  # Network configuration for cluster
-  networking = {
-    firewall = {
-      allowedTCPPorts = [
-        22     # SSH
-        10250  # kubelet API
-        8472   # Flannel VXLAN
-      ];
-      allowedUDPPorts = [
-        8472   # Flannel VXLAN
-      ];
-      allowedTCPPortRanges = [
-        { from = 30000; to = 32767; }  # NodePort services
-      ];
-    };
-  };
+  # Tailscale handles networking, no firewall needed
 
   # System packages for worker nodes
   environment.systemPackages = with pkgs; [
+    # Kubernetes tools
+    kubernetes  # includes kubectl and kubeadm
+    k9s
+    
     # Container tools
     cri-o
     cri-tools
-    
-    # Kubernetes tools
-    kubernetes
-    kubectl
-    k9s
-    
-    # Network tools
-    flannel
-    
-    # Monitoring
-    prometheus-node-exporter
 
-    # git
+    # Network tools (Calico uses kubectl, no special CLI needed)
+
+    # System utilities required by kubeadm
+    util-linux
+    coreutils
+    iproute2
+    iptables
+    ethtool
+    socat
+    
+    # System utilities
     git
-
-    #extra
+    curl
+    wget
+    unzip
+    htop
+    tree
+    vim
+    
+    # extra
     fastfetchMinimal
   ];
 
   # Services for worker nodes
   services = {
-    # Node exporter for monitoring
-    prometheus.exporters.node = {
+    # Enable kubelet service for kubeadm
+    kubernetes.kubelet = {
       enable = true;
-      port = 9100;
-      enabledCollectors = [
-        "systemd"
-        "filesystem" 
-        "netdev"
-        "meminfo"
-        "cpu"
-        "loadavg"
-      ];
+      address = "0.0.0.0";
+      port = 10250;
     };
+  };
 
-
-
+  # Kubeadm join service (Option A: file-based)
+  systemd.services.kubeadm-join = {
+    enable = true;
+    description = "Join Kubernetes cluster as worker node";
+    after = [ "network.target" "cri-o.service" ];
+    wants = [ "cri-o.service" ];
+    wantedBy = [ "multi-user.target" ];
+    
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = let
+        joinScript = pkgs.writeScript "kubeadm-join.sh" ''
+          #!/bin/bash
+          set -e
+          
+          # Check if node is already joined
+          if [ -f /etc/kubernetes/kubelet.conf ]; then
+            echo "Node already joined to cluster"
+            exit 0
+          fi
+          
+          # Wait for join command file (Option A)
+          echo "Waiting for join command from control plane..."
+          while [ ! -f /tmp/k8s-shared/join-command.txt ]; do
+            echo "Join command not found, waiting..."
+            sleep 10
+          done
+          
+          # Read and execute join command
+          JOIN_CMD=$(cat /tmp/k8s-shared/join-command.txt)
+          echo "Executing: $JOIN_CMD --cri-socket=unix:///var/run/crio/crio.sock"
+          
+          # Execute join with CRI-O socket
+          $JOIN_CMD --cri-socket=unix:///var/run/crio/crio.sock
+          
+          echo "Successfully joined cluster"
+        '';
+      in "${joinScript}";
+      
+      Restart = "on-failure";
+      RestartSec = "30s";
+      TimeoutStartSec = "300"; # 5 minutes timeout
+    };
   };
 
   # System tuning for Kubernetes
