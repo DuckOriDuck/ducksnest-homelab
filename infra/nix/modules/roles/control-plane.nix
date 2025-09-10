@@ -46,9 +46,6 @@
     awscli2
     jq
     
-    # Tailscale
-    tailscale
-    
     # Network tools
     flannel
     
