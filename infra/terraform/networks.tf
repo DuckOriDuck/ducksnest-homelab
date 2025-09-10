@@ -5,7 +5,7 @@ resource "aws_vpc" "main" {
   enable_dns_support   = true
 
   tags = {
-    Name = "ducksnest-vpc"
+    Name        = "ducksnest-vpc"
     Environment = "homelab"
   }
 }
@@ -14,7 +14,7 @@ resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 
   tags = {
-    Name = "ducksnest-igw"
+    Name        = "ducksnest-igw"
     Environment = "homelab"
   }
 }
@@ -26,7 +26,7 @@ resource "aws_subnet" "public_a" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "ducksnest-public-subnet"
+    Name        = "ducksnest-public-subnet"
     Environment = "homelab"
   }
 }
@@ -38,7 +38,7 @@ resource "aws_subnet" "public_c" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "ducksnest-public-subnet"
+    Name        = "ducksnest-public-subnet"
     Environment = "homelab"
   }
 }
@@ -52,7 +52,7 @@ resource "aws_route_table" "public" {
   }
 
   tags = {
-    Name = "ducksnest-public-rt"
+    Name        = "ducksnest-public-rt"
     Environment = "homelab"
   }
 }

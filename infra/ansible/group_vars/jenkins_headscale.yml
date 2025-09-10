@@ -1,0 +1,89 @@
+---
+# Jenkins & Headscale 서버 전용 설정
+
+# Jenkins 설정
+jenkins_home: "/var/jenkins_home"
+jenkins_http_port: 8080
+jenkins_agent_port: 50000
+jenkins_version: "lts"
+
+jenkins_plugins:
+  - git
+  - workflow-aggregator
+  - docker-workflow
+  - ansible
+  - pipeline-stage-view
+  - blueocean
+  - kubernetes
+  - prometheus
+
+jenkins_admin_username: "admin"
+jenkins_admin_password: "{{ vault_jenkins_admin_password }}"
+
+# Jenkins Docker Compose 설정
+jenkins_docker_compose_file: "/opt/jenkins/docker-compose.yml"
+jenkins_data_dir: "/opt/jenkins/data"
+
+# Headscale 설정
+headscale_config_dir: "/etc/headscale"
+headscale_data_dir: "/var/lib/headscale"
+headscale_listen_addr: "0.0.0.0:8080"
+headscale_metrics_listen_addr: "127.0.0.1:9090"
+headscale_grpc_listen_addr: "0.0.0.0:50443"
+
+# Headscale 네트워크 설정
+headscale_ip_prefixes:
+  - "100.64.0.0/10"
+
+headscale_dns_config:
+  override_local_dns: true
+  nameservers:
+    - "1.1.1.1"
+    - "8.8.8.8"
+  domains:
+    - "{{ homelab_domain }}"
+
+# DERP 설정 (선택사항)
+headscale_derp_map_url: "https://controlplane.tailscale.com/derpmap/default"
+headscale_derp_auto_update_enabled: true
+headscale_derp_update_frequency: "24h"
+
+# ACL 정책
+headscale_acl_policy: |
+  {
+    "groups": {
+      "group:admin": ["ubuntu"],
+      "group:servers": ["tag:server"],
+      "group:workers": ["tag:worker"]
+    },
+    "tagOwners": {
+      "tag:server": ["group:admin"],
+      "tag:worker": ["group:admin"]
+    },
+    "acls": [
+      {
+        "action": "accept",
+        "src": ["group:admin"],
+        "dst": ["*:*"]
+      },
+      {
+        "action": "accept", 
+        "src": ["tag:server"],
+        "dst": ["tag:worker:*"]
+      },
+      {
+        "action": "accept",
+        "src": ["tag:worker"], 
+        "dst": ["tag:server:6443", "tag:server:2379-2380", "tag:server:10250"]
+      }
+    ]
+  }
+
+# UFW 규칙 (Jenkins/Headscale 전용)
+ufw_rules:
+  - { rule: "allow", port: "22", proto: "tcp" }          # SSH
+  - { rule: "allow", port: "8080", proto: "tcp" }        # Jenkins/Headscale
+  - { rule: "allow", port: "443", proto: "tcp" }         # HTTPS
+  - { rule: "allow", port: "50000", proto: "tcp" }       # Jenkins Agent
+  - { rule: "allow", port: "41641", proto: "udp" }       # Tailscale
+  - { rule: "allow", port: "50443", proto: "tcp" }       # Headscale gRPC

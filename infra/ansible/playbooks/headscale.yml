@@ -1,0 +1,375 @@
+---
+# Headscale 서버 설정 플레이북 (Native Installation)
+
+- name: Setup Headscale Server
+  hosts: headscale
+  become: true
+  gather_facts: true
+
+  tasks:
+    # Headscale 바이너리 설치
+    - name: Create headscale user
+      user:
+        name: headscale
+        system: yes
+        shell: /bin/false
+        home: /var/lib/headscale
+        create_home: yes
+        
+    - name: Create headscale directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: headscale
+        group: headscale
+        mode: '0755'
+      loop:
+        - /etc/headscale
+        - /var/lib/headscale
+        - /opt/headscale/backups
+        - /opt/headscale/scripts
+        - /opt/headscale/logs
+        
+    - name: Detect system architecture
+      command: dpkg --print-architecture
+      register: system_arch
+      changed_when: false
+      
+    - name: Set headscale architecture
+      set_fact:
+        headscale_arch: "{{ 'arm64' if system_arch.stdout == 'arm64' else 'amd64' }}"
+        
+    - name: Download headscale binary
+      get_url:
+        url: "https://github.com/juanfont/headscale/releases/download/v{{ headscale_version }}/headscale_{{ headscale_version }}_linux_{{ headscale_arch }}"
+        dest: /usr/local/bin/headscale
+        mode: '0755'
+        owner: root
+        group: root
+        
+    - name: Generate headscale private key
+      shell: |
+        if [ ! -f /etc/headscale/private.key ]; then
+          /usr/local/bin/headscale generate private-key > /etc/headscale/private.key
+        fi
+      args:
+        creates: /etc/headscale/private.key
+        
+    - name: Set private key permissions
+      file:
+        path: /etc/headscale/private.key
+        owner: headscale
+        group: headscale
+        mode: '0600'
+        
+    - name: Create headscale configuration
+      copy:
+        content: |
+          server_url: https://{{ ansible_host }}
+          listen_addr: {{ headscale_listen_addr }}
+          metrics_listen_addr: {{ headscale_metrics_listen_addr }}
+          grpc_listen_addr: {{ headscale_grpc_listen_addr }}
+          grpc_allow_insecure: false
+          
+          private_key_path: /etc/headscale/private.key
+          noise:
+            private_key_path: /etc/headscale/noise_private.key
+          
+          ip_prefixes:
+          {% for prefix in headscale_ip_prefixes %}
+            - {{ prefix }}
+          {% endfor %}
+          
+          derp:
+            server:
+              enabled: false
+            urls:
+              - {{ headscale_derp_map_url }}
+            auto_update_enabled: {{ headscale_derp_auto_update_enabled | lower }}
+            update_frequency: {{ headscale_derp_update_frequency }}
+          
+          disable_check_updates: false
+          ephemeral_node_inactivity_timeout: 30m
+          database:
+            type: sqlite3
+            sqlite:
+              path: /var/lib/headscale/db.sqlite
+          
+          acl_policy_path: /etc/headscale/acl.hujson
+          
+          dns_config:
+            override_local_dns: {{ headscale_dns_config.override_local_dns | lower }}
+            nameservers:
+            {% for ns in headscale_dns_config.nameservers %}
+              - {{ ns }}
+            {% endfor %}
+            domains:
+            {% for domain in headscale_dns_config.domains %}
+              - {{ domain }}
+            {% endfor %}
+            magic_dns: true
+            base_domain: {{ homelab_domain }}
+          
+          logtail:
+            enabled: false
+          
+          randomize_client_port: false
+        dest: /etc/headscale/config.yaml
+        owner: headscale
+        group: headscale
+        mode: '0644'
+        
+    - name: Create headscale ACL policy
+      copy:
+        content: "{{ headscale_acl_policy }}"
+        dest: /etc/headscale/acl.hujson
+        owner: headscale
+        group: headscale
+        mode: '0644'
+        
+    # Systemd 서비스 설정
+    - name: Create headscale systemd service
+      copy:
+        content: |
+          [Unit]
+          Description=headscale coordination server
+          After=syslog.target
+          After=network.target
+          
+          [Service]
+          Type=simple
+          User=headscale
+          Group=headscale
+          ExecStart=/usr/local/bin/headscale serve
+          Restart=always
+          RestartSec=5
+          
+          # Optional security enhancements
+          NoNewPrivileges=true
+          PrivateTmp=true
+          ProtectSystem=strict
+          ProtectHome=true
+          ReadWritePaths=/var/lib/headscale /var/log
+          AmbientCapabilities=CAP_NET_BIND_SERVICE
+          
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/headscale.service
+        mode: '0644'
+        
+    - name: Reload systemd and start headscale
+      systemd:
+        daemon_reload: yes
+        name: headscale
+        state: started
+        enabled: yes
+        
+    - name: Wait for headscale to start
+      wait_for:
+        port: 8080
+        host: "{{ ansible_host }}"
+        timeout: 120
+        
+    - name: Create headscale user
+      shell: |
+        /usr/local/bin/headscale users create {{ ansible_user }} || true
+      become_user: headscale
+      
+    - name: Generate headscale pre-auth key
+      shell: |
+        /usr/local/bin/headscale --user {{ ansible_user }} preauthkeys create --reusable --expiration 24h
+      register: headscale_preauth_key
+      become_user: headscale
+      
+    - name: Create additional pre-auth keys for different client types
+      shell: |
+        /usr/local/bin/headscale --user {{ ansible_user }} preauthkeys create --reusable --expiration 7d --tags "nixos-client"
+      register: nixos_preauth_key
+      become_user: headscale
+      
+    - name: Create K8s pre-auth key
+      shell: |
+        /usr/local/bin/headscale --user {{ ansible_user }} preauthkeys create --reusable --expiration 7d --tags "k8s-control-plane"
+      register: k8s_preauth_key
+      become_user: headscale
+      
+    - name: Create headscale management script
+      copy:
+        content: |
+          #!/usr/bin/env bash
+          # Headscale 관리 스크립트
+          
+          set -euo pipefail
+          
+          HEADSCALE_USER="{{ ansible_user }}"
+          
+          case "${1:-help}" in
+            "users")
+              /usr/local/bin/headscale users list
+              ;;
+            "nodes")
+              /usr/local/bin/headscale nodes list
+              ;;
+            "routes")
+              echo "📋 라우트 목록:"
+              /usr/local/bin/headscale routes list
+              echo ""
+              echo "승인되지 않은 라우트를 승인하려면:"
+              echo "  headscale-manage enable-route <route-id>"
+              ;;
+            "enable-route")
+              if [ -n "${2:-}" ]; then
+                /usr/local/bin/headscale routes enable -r "$2"
+                echo "✅ 라우트 $2 승인됨"
+              else
+                echo "Usage: $0 enable-route <route-id>"
+                exit 1
+              fi
+              ;;
+            "enable-all-routes")
+              echo "🔄 모든 라우트 자동 승인 중..."
+              /usr/local/bin/headscale routes list -o json | \
+                jq -r '.[] | select(.Enabled == false) | .ID' | \
+                while read -r route_id; do
+                  echo "승인 중: Route ID $route_id"
+                  /usr/local/bin/headscale routes enable -r "$route_id"
+                done
+              echo "✅ 모든 라우트 승인 완료"
+              ;;
+            "create-key")
+              local tag="${2:-general}"
+              local expiry="${3:-24h}"
+              echo "🔑 새 pre-auth key 생성 중..."
+              /usr/local/bin/headscale --user "$HEADSCALE_USER" preauthkeys create --reusable --expiration "$expiry" --tags "$tag"
+              ;;
+            "network-info")
+              echo "🌐 Headscale 네트워크 정보:"
+              echo "  서버 URL: https://{{ ansible_host }}"
+              echo "  사용자: $HEADSCALE_USER"
+              echo ""
+              echo "📊 연결된 노드:"
+              /usr/local/bin/headscale nodes list
+              echo ""
+              echo "🛣️  네트워크 라우트:"
+              /usr/local/bin/headscale routes list
+              ;;
+            "status")
+              echo "🔍 Headscale 서비스 상태:"
+              systemctl status headscale --no-pager
+              echo ""
+              echo "📊 네트워크 통계:"
+              /usr/local/bin/headscale nodes list | wc -l | xargs echo "연결된 노드:"
+              ;;
+            "logs")
+              echo "📝 Headscale 로그:"
+              journalctl -u headscale -n 50 --no-pager
+              ;;
+            "help"|*)
+              echo "Headscale 관리 스크립트"
+              echo ""
+              echo "사용법: $0 <command> [options]"
+              echo ""
+              echo "Commands:"
+              echo "  users              - 사용자 목록"
+              echo "  nodes              - 연결된 노드 목록"
+              echo "  routes             - 네트워크 라우트 목록"
+              echo "  enable-route <id>  - 특정 라우트 승인"
+              echo "  enable-all-routes  - 모든 라우트 자동 승인"
+              echo "  create-key [tag] [expiry] - 새 pre-auth key 생성"
+              echo "  network-info       - 전체 네트워크 정보"
+              echo "  status             - 서비스 상태 확인"
+              echo "  logs               - 서비스 로그 확인"
+              echo "  help               - 도움말 표시"
+              ;;
+          esac
+        dest: /usr/local/bin/headscale-manage
+        mode: '0755'
+        owner: root
+        group: root
+        
+    - name: Save pre-auth keys to local files
+      copy:
+        content: |
+          # Headscale Pre-Auth Keys
+          # Generated on {{ ansible_date_time.date }} {{ ansible_date_time.time }}
+          
+          # Default key (24h)
+          DEFAULT_KEY={{ headscale_preauth_key.stdout }}
+          
+          # NixOS clients key (7d)
+          NIXOS_KEY={{ nixos_preauth_key.stdout }}
+          
+          # K8s Control Plane key (7d)
+          K8S_KEY={{ k8s_preauth_key.stdout }}
+          
+          # Usage:
+          # NixOS clients: tailscale up --login-server https://{{ ansible_host }} --authkey $NIXOS_KEY
+          # K8s CP: tailscale up --login-server https://{{ ansible_host }} --authkey $K8S_KEY
+        dest: /opt/headscale/keys/preauth-keys.env
+        mode: '0600'
+        owner: headscale
+        group: headscale
+        
+    - name: Create keys directory
+      file:
+        path: /opt/headscale/keys
+        state: directory
+        owner: headscale
+        group: headscale
+        mode: '0700'
+      
+    - name: Display headscale information
+      debug:
+        msg: |
+          🔗 Headscale Mesh Network 설정 완료!
+          
+          서버 정보:
+          - URL: https://{{ ansible_host }}
+          - 사용자: {{ ansible_user }}
+          
+          Pre-Auth Keys:
+          - Default (24h): {{ headscale_preauth_key.stdout }}
+          - NixOS (7d): {{ nixos_preauth_key.stdout }}
+          - K8s (7d): {{ k8s_preauth_key.stdout }}
+          
+          관리 명령어:
+          - headscale-manage network-info  # 전체 네트워크 정보
+          - headscale-manage enable-all-routes  # 모든 라우트 승인
+          - headscale-manage nodes  # 연결된 노드 확인
+          
+          클라이언트 연결:
+          - NixOS: ansible-playbook nixos-tailscale.yml -e headscale_preauth_key={{ nixos_preauth_key.stdout }}
+          - K8s CP: ansible-playbook k8s-tailscale.yml -e headscale_preauth_key={{ k8s_preauth_key.stdout }}
+          
+    # 백업 설정
+    - name: Create headscale backup script
+      copy:
+        content: |
+          #!/bin/bash
+          BACKUP_DIR="/opt/headscale/backups"
+          DATE=$(date +%Y%m%d_%H%M%S)
+          
+          mkdir -p "$BACKUP_DIR"
+          
+          # Headscale 데이터 백업
+          systemctl stop headscale
+          tar czf "$BACKUP_DIR/headscale_$DATE.tar.gz" -C /var/lib/headscale .
+          tar czf "$BACKUP_DIR/headscale_config_$DATE.tar.gz" -C /etc/headscale .
+          systemctl start headscale
+          
+          # 7일 이상된 백업 삭제
+          find "$BACKUP_DIR" -name "headscale_*.tar.gz" -mtime +7 -delete
+          
+          echo "Headscale backup completed: $DATE"
+        dest: /opt/headscale/scripts/backup.sh
+        mode: '0755'
+        owner: root
+        group: root
+        
+    - name: Setup headscale backup cron job
+      cron:
+        name: "Headscale backup"
+        minute: "0"
+        hour: "3"
+        job: "/opt/headscale/scripts/backup.sh >> /opt/headscale/logs/backup.log 2>&1"
+        user: root

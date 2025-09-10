@@ -1,0 +1,332 @@
+---
+# Kubernetes Control Plane 서버 설정 플레이북
+
+- name: Setup Kubernetes Control Plane
+  hosts: k8s_control_plane
+  become: true
+  gather_facts: true
+  
+  tasks:
+    # containerd 설정
+    - name: Load required kernel modules
+      modprobe:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - overlay
+        - br_netfilter
+        
+    - name: Configure kernel modules to load at boot
+      copy:
+        content: |
+          overlay
+          br_netfilter
+        dest: /etc/modules-load.d/k8s.conf
+        
+    - name: Configure sysctl for Kubernetes
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        sysctl_set: true
+        reload: true
+      loop:
+        - { name: "net.bridge.bridge-nf-call-iptables", value: "1" }
+        - { name: "net.bridge.bridge-nf-call-ip6tables", value: "1" }
+        - { name: "net.ipv4.ip_forward", value: "1" }
+        
+    - name: Install containerd
+      apt:
+        name: containerd.io
+        state: present
+        
+    - name: Create containerd configuration directory
+      file:
+        path: /etc/containerd
+        state: directory
+        mode: '0755'
+        
+    - name: Generate containerd default config
+      shell: containerd config default > /etc/containerd/config.toml
+      args:
+        creates: /etc/containerd/config.toml
+        
+    - name: Configure containerd to use systemd cgroups
+      lineinfile:
+        path: /etc/containerd/config.toml
+        regexp: '^\s*SystemdCgroup\s*='
+        line: '            SystemdCgroup = true'
+        
+    - name: Restart and enable containerd
+      systemd:
+        name: containerd
+        state: restarted
+        enabled: true
+        
+    # Kubernetes 패키지 설치
+    - name: Add Kubernetes GPG key
+      apt_key:
+        url: https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/Release.key
+        keyring: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        state: present
+        
+    - name: Add Kubernetes repository
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/ /"
+        state: present
+        filename: kubernetes
+        
+    - name: Install Kubernetes packages
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+        update_cache: true
+        
+    - name: Hold Kubernetes packages
+      dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
+        
+    - name: Enable kubelet
+      systemd:
+        name: kubelet
+        enabled: true
+        
+    # Tailscale IP 확인 (실제 배포시에는 동적으로 가져와야 함)
+    - name: Get Tailscale IP address
+      shell: |
+        tailscale ip -4 2>/dev/null || echo "{{ private_ip }}"
+      register: tailscale_ip_result
+      changed_when: false
+      
+    - name: Set Tailscale IP fact
+      set_fact:
+        tailscale_ip: "{{ tailscale_ip_result.stdout }}"
+        
+    # kubeadm 설정 파일 생성
+    - name: Create kubeadm config file
+      copy:
+        content: |
+          apiVersion: kubeadm.k8s.io/v1beta3
+          kind: InitConfiguration
+          localAPIEndpoint:
+            advertiseAddress: {{ tailscale_ip }}
+            bindPort: 6443
+          nodeRegistration:
+            criSocket: unix:///var/run/containerd/containerd.sock
+            kubeletExtraArgs:
+              node-ip: {{ tailscale_ip }}
+          ---
+          apiVersion: kubeadm.k8s.io/v1beta3
+          kind: ClusterConfiguration
+          clusterName: {{ cluster_name }}
+          kubernetesVersion: v{{ kubernetes_version }}.0
+          controlPlaneEndpoint: {{ tailscale_ip }}:6443
+          apiServer:
+            advertiseAddress: {{ tailscale_ip }}
+            certSANs:
+            {% for san in k8s_cert_extra_sans %}
+              - {{ san }}
+            {% endfor %}
+            extraArgs:
+              audit-log-maxage: "{{ audit_log_maxage }}"
+              audit-log-maxbackup: "{{ audit_log_maxbackup }}"
+              audit-log-maxsize: "{{ audit_log_maxsize }}"
+              audit-log-path: "{{ audit_log_path }}"
+              enable-admission-plugins: "NodeRestriction"
+          controllerManager:
+            extraArgs:
+              bind-address: "0.0.0.0"
+          scheduler:
+            extraArgs:
+              bind-address: "0.0.0.0"
+          etcd:
+            local:
+              dataDir: {{ etcd_data_dir }}
+              extraArgs:
+                listen-metrics-urls: "http://0.0.0.0:2381"
+          networking:
+            serviceSubnet: {{ service_subnet }}
+            podSubnet: {{ pod_subnet }}
+          ---
+          apiVersion: kubelet.config.k8s.io/v1beta1
+          kind: KubeletConfiguration
+          cgroupDriver: systemd
+          clusterDNS:
+            - "10.96.0.10"
+          clusterDomain: "cluster.local"
+        dest: /etc/kubeadm/config.yaml
+        mode: '0644'
+        
+    # Kubernetes 클러스터 초기화
+    - name: Check if Kubernetes is already initialized
+      stat:
+        path: /etc/kubernetes/admin.conf
+      register: k8s_admin_conf
+      
+    - name: Initialize Kubernetes cluster
+      shell: kubeadm init --config=/etc/kubeadm/config.yaml
+      when: not k8s_admin_conf.stat.exists
+      register: kubeadm_init_result
+      
+    - name: Create .kube directory for root
+      file:
+        path: /root/.kube
+        state: directory
+        mode: '0755'
+        
+    - name: Copy admin.conf to root's kube config
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /root/.kube/config
+        remote_src: true
+        mode: '0644'
+        
+    - name: Create .kube directory for ubuntu user
+      file:
+        path: /home/ubuntu/.kube
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+        
+    - name: Copy admin.conf to ubuntu's kube config
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ubuntu/.kube/config
+        remote_src: true
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+        
+    # CNI 플러그인 설치 (Flannel)
+    - name: Download Flannel manifest
+      get_url:
+        url: "https://github.com/flannel-io/flannel/releases/download/v{{ flannel_version }}/kube-flannel.yml"
+        dest: /tmp/kube-flannel.yml
+        mode: '0644'
+        
+    - name: Configure Flannel to use Tailscale interface
+      replace:
+        path: /tmp/kube-flannel.yml
+        regexp: '(\s+)- --kube-subnet-mgr'
+        replace: '\1- --kube-subnet-mgr\n\1- --iface={{ flannel_iface }}'
+      when: flannel_iface is defined
+      
+    - name: Apply Flannel CNI
+      kubernetes.core.k8s:
+        state: present
+        src: /tmp/kube-flannel.yml
+        kubeconfig: /root/.kube/config
+      retries: 3
+      delay: 30
+      
+    # 클러스터 조인 토큰 생성
+    - name: Generate cluster join command
+      shell: kubeadm token create --print-join-command
+      register: k8s_join_command
+      
+    - name: Save join command to file
+      copy:
+        content: "{{ k8s_join_command.stdout }}"
+        dest: /opt/homelab/k8s-join-command.sh
+        mode: '0755'
+        
+    # etcd 백업 설정
+    - name: Create etcd backup directory
+      file:
+        path: "{{ etcd_backup_dir }}"
+        state: directory
+        mode: '0755'
+        
+    - name: Create etcd backup script
+      copy:
+        content: |
+          #!/bin/bash
+          BACKUP_DIR="{{ etcd_backup_dir }}"
+          DATE=$(date +%Y%m%d_%H%M%S)
+          
+          ETCDCTL_API=3 etcdctl \
+            --endpoints=https://127.0.0.1:2379 \
+            --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+            --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt \
+            --key=/etc/kubernetes/pki/etcd/healthcheck-client.key \
+            snapshot save "$BACKUP_DIR/etcd-snapshot-$DATE.db"
+          
+          # 7일 이상된 백업 삭제
+          find "$BACKUP_DIR" -name "etcd-snapshot-*.db" -mtime +{{ etcd_backup_retention_days }} -delete
+          
+          echo "etcd backup completed: $DATE"
+        dest: /opt/homelab/scripts/etcd-backup.sh
+        mode: '0755'
+        
+    - name: Setup etcd backup cron job
+      cron:
+        name: "etcd backup"
+        minute: "0"
+        hour: "1"
+        job: "/opt/homelab/scripts/etcd-backup.sh >> /opt/homelab/logs/etcd-backup.log 2>&1"
+      when: etcd_backup_enabled | default(false)
+      
+    # 클러스터 상태 확인
+    - name: Wait for all control plane components to be ready
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: kube-system
+        label_selectors:
+          - tier=control-plane
+        kubeconfig: /root/.kube/config
+      register: control_plane_pods
+      until: control_plane_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length >= 4
+      retries: 30
+      delay: 10
+      
+    - name: Get cluster info
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Node
+        kubeconfig: /root/.kube/config
+      register: cluster_nodes
+      
+    - name: Display cluster information
+      debug:
+        msg: |
+          ☸️  Kubernetes Control Plane 설정 완료!
+          
+          클러스터 정보:
+          - API 서버: https://{{ tailscale_ip }}:6443
+          - 노드 수: {{ cluster_nodes.resources | length }}
+          - CNI: {{ kubernetes_cni }}
+          
+          워커 노드 조인 명령어:
+          {{ k8s_join_command.stdout }}
+          
+          kubectl 사용법:
+          export KUBECONFIG=/etc/kubernetes/admin.conf
+          kubectl get nodes
+          kubectl get pods -A
+          
+    # 메트릭 서버 설치 (선택사항)
+    - name: Install metrics-server
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: metrics-system
+        kubeconfig: /root/.kube/config
+        
+    - name: Apply metrics-server manifest
+      kubernetes.core.k8s:
+        state: present
+        src: https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+        kubeconfig: /root/.kube/config
+      ignore_errors: true  # 네트워크 이슈로 실패할 수 있음

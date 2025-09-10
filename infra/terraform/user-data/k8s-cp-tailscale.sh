@@ -1,10 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-# Kubernetes Control Plane EC2 initial setting script
+# Kubernetes Control Plane EC2 with Tailscale
 
 # vars
 HOSTNAME="${hostname}"
+AWS_REGION="${aws_region}"
 KUBERNETES_VERSION=v1.33
 CRIO_VERSION=v1.33
 OS_CODENAME="xUbuntu_24.04"
@@ -36,21 +37,64 @@ if ! grep -q "$HOSTNAME" /etc/hosts; then
   echo "127.0.1.1 $HOSTNAME" >> /etc/hosts
 fi
 
-# Configure time synchronization
-timedatectl set-timezone Asia/Seoul
-systemctl enable systemd-timesyncd
-systemctl start systemd-timesyncd
+# Install AWS CLI v2
+echo "Installing AWS CLI v2..."
+ARCH=$(uname -m)
+if [ "$ARCH" = "x86_64" ]; then
+    AWS_CLI_ARCH="x86_64"
+elif [ "$ARCH" = "aarch64" ]; then
+    AWS_CLI_ARCH="aarch64"
+else
+    echo "Unsupported architecture: $ARCH"
+    exit 1
+fi
+
+curl "https://awscli.amazonaws.com/awscli-exe-linux-$AWS_CLI_ARCH.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+./aws/install
+rm -rf aws awscliv2.zip
+
+# Configure AWS CLI region
+aws configure set region "$AWS_REGION"
+
+# Install Tailscale
+echo "Installing Tailscale..."
+curl -fsSL https://tailscale.com/install.sh | sh
+
+# Get Tailscale auth key from AWS Secrets Manager and connect
+echo "Retrieving Tailscale auth key from Secrets Manager..."
+AUTH_KEY=$(aws secretsmanager get-secret-value \
+    --secret-id "tailscale-cp-secret" \
+    --query 'SecretString' \
+    --output text | jq -r '.["tailscale-cp-key"]')
+
+if [ -z "$AUTH_KEY" ] || [ "$AUTH_KEY" = "null" ]; then
+    echo "ERROR: Failed to retrieve Tailscale auth key"
+    exit 1
+fi
+
+# Connect to Tailscale
+tailscale up \
+    --authkey="$AUTH_KEY" \
+    --hostname="$HOSTNAME" \
+    --accept-routes \
+    --accept-dns
+
+# Wait for connection and get IP
+sleep 10
+TAILSCALE_IP=$(tailscale ip -4)
+echo "Tailscale connected with IP: $TAILSCALE_IP"
 
 # Disable swap
 swapoff -a
 sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+
 
 # Load kernel modules
 cat > /etc/modules-load.d/k8s.conf << EOF
 overlay
 br_netfilter
 EOF
-
 
 modprobe overlay
 modprobe br_netfilter
@@ -95,6 +139,17 @@ echo 'fs.file-max=65536' >> /etc/sysctl.conf
 sysctl -p
 
 
+# Create status file
+cat > /tmp/tailscale-cp-info.json << EOF
+{
+  "hostname": "$HOSTNAME",
+  "tailscale_ip": "$TAILSCALE_IP",
+  "kubernetes_version": "$KUBERNETES_VERSION",
+  "setup_completed": "$(date -Iseconds)"
+}
+EOF
+
 # Completion marker
 touch /var/lib/cloud/instance/boot-finished
-echo "Kubernetes Control Plane server initialization completed at $(date)" > /var/log/init-complete.log
+echo "Kubernetes Control Plane with Tailscale initialization completed at $(date)" > /var/log/init-complete.log
+echo "Control Plane Tailscale IP: $TAILSCALE_IP"
