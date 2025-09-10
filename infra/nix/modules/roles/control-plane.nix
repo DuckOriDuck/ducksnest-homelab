@@ -42,8 +42,12 @@
     kustomize
     k9s
     
-    #AWS cli
-    pkgs.awscli2
+    # AWS CLI and tools
+    awscli2
+    jq
+    
+    # Tailscale
+    tailscale
     
     # Network tools
     flannel
@@ -55,6 +59,14 @@
     # GitOps tools
     git
 
+    # System utilities
+    curl
+    wget
+    unzip
+    htop
+    tree
+    vim
+    
     # extra
     fastfetchMinimal
   ];
