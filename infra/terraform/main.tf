@@ -24,18 +24,18 @@ provider "aws" {
 
 
 # AMI
-data "aws_ami" "ubuntu" {
+data "aws_ami" "nixos_x86_64" {
   most_recent = true
-  owners      = ["099720109477"] # Canonical
+  owners      = ["427812963091"]
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-arm64-server-*"]
+    values = ["nixos/25.05*"]
   }
 
   filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
+    name   = "architecture"
+    values = ["x86_64"]
   }
 }
 
