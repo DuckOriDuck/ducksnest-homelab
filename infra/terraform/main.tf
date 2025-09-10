@@ -46,8 +46,8 @@ data "aws_iam_instance_profile" "k8s_cp_profile" {
 
 # EC2 Instances
 resource "aws_instance" "k8s_control_plane" {
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = "t4g.medium"
+  ami                    = data.aws_ami.nixos_x86_64.id
+  instance_type          = "t3.medium"
   key_name               = var.key_name
   subnet_id              = aws_subnet.public_c.id
   vpc_security_group_ids = [aws_security_group.strict_egress.id]

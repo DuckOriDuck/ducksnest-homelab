@@ -7,13 +7,22 @@ set -euo pipefail
 HOSTNAME="${hostname}"
 AWS_REGION="${aws_region}"
 
+
+NIX_CONFIG=$'experimental-features = nix-command flakes\nsubstituters = s3://another-nix-cache-test?region=ap-northeast-2\nrequire-sigs = false\nnarinfo-cache-negative-ttl = 0' \
+sudo nixos-rebuild switch \
+  --flake 'github:DuckOriDuck/ducksnest-homelab?dir=infra/nix#ec2-controlplane' \
+  --option builders '' \
+  --option fallback false \
+  --refresh
+
+
 # Download and populate Nix cache from S3
-echo "Downloading Nix cache from S3..."
-nix copy --all --from s3://another-nix-cache-test?region=ap-northeast-2 --experimental-features 'nix-command flakes' --no-check-sigs
+#echo "Downloading Nix cache from S3..."
+#nix copy --from s3://another-nix-cache-test?region=ap-northeast-2 nixpkgs#ec2-controlplane --experimental-features 'nix-command flakes' --no-check-sigs
 
 # NixOS rebuild with flake configuration
-echo "Rebuilding NixOS with flake configuration..."
-sudo nixos-rebuild switch --flake 'github:DuckOriDuck/ducksnest-homelab/infra/nix?dir=infra/nix#ec2-controlplane' 
+#echo "Rebuilding NixOS with flake configuration..."
+#sudo nixos-rebuild switch --flake 'github:DuckOriDuck/ducksnest-homelab/infra/nix?dir=infra/nix#ec2-controlplane' 
 
 # Configure AWS CLI region (AWS CLI should be available through NixOS configuration)
 aws configure set region "$AWS_REGION"
