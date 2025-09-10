@@ -42,6 +42,8 @@
     kustomize
     k9s
     
+    #AWS cli
+    pkgs.awscli2
     
     # Network tools
     flannel
