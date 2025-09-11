@@ -46,14 +46,8 @@
   ];
 
   # Services for worker nodes
-  services = {
-    # Enable kubelet service for kubeadm
-    kubernetes.kubelet = {
-      enable = true;
-      address = "0.0.0.0";
-      port = 10250;
-    };
-  };
+  # Note: kubelet is managed by kubeadm, not NixOS kubernetes module
+  services = {};
 
   # Kubeadm join service (Option A: file-based)
   systemd.services.kubeadm-join = {
@@ -77,15 +71,25 @@
             exit 0
           fi
           
-          # Wait for join command file (Option A)
-          echo "Waiting for join command from control plane..."
-          while [ ! -f /tmp/k8s-shared/join-command.txt ]; do
-            echo "Join command not found, waiting..."
-            sleep 10
-          done
+          # Try to get join command via HTTP first, fallback to file
+          echo "Getting join command from control plane..."
           
-          # Read and execute join command
-          JOIN_CMD=$(cat /tmp/k8s-shared/join-command.txt)
+          # Option A: Try HTTP first (requires CP to be accessible)
+          if ${pkgs.curl}/bin/curl -f -s http://control-plane-ip:8888/join-command.txt > /tmp/join-command.txt 2>/dev/null; then
+            JOIN_CMD=$(cat /tmp/join-command.txt)
+            echo "Got join command via HTTP"
+          # Option B: Fallback to shared file location
+          elif [ -f /tmp/k8s-shared/join-command.txt ]; then
+            JOIN_CMD=$(cat /tmp/k8s-shared/join-command.txt)
+            echo "Got join command via shared file"
+          else
+            echo "Waiting for join command file..."
+            while [ ! -f /tmp/k8s-shared/join-command.txt ]; do
+              echo "Join command not found, waiting..."
+              sleep 10
+            done
+            JOIN_CMD=$(cat /tmp/k8s-shared/join-command.txt)
+          fi
           echo "Executing: $JOIN_CMD --cri-socket=unix:///var/run/crio/crio.sock"
           
           # Execute join with CRI-O socket
@@ -101,16 +105,12 @@
     };
   };
 
-  # System tuning for Kubernetes
+  # System tuning for Kubernetes (bridge settings handled by kubelet module)
   boot.kernel.sysctl = {
-    "net.bridge.bridge-nf-call-iptables" = 1;
-    "net.bridge.bridge-nf-call-ip6tables" = 1;
-    "net.ipv4.ip_forward" = 1;
-    "net.ipv4.conf.all.forwarding" = 1;
     "fs.inotify.max_user_watches" = 524288;
     "fs.inotify.max_user_instances" = 512;
   };
 
-  # Load required kernel modules
-  boot.kernelModules = [ "br_netfilter" "overlay" ];
+  # Load required kernel modules (br_netfilter handled by kubelet module)
+  boot.kernelModules = [ "overlay" ];
 }

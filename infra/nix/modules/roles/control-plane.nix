@@ -50,13 +50,8 @@
   ];
 
   # Services for control plane
-  services = {
-    kubernetes.kubelet = {
-      enable = true;
-      address = "0.0.0.0";
-      port = 10250;
-    };
-  };
+  # Note: kubelet is managed by kubeadm, not NixOS kubernetes module
+  services = {};
 
   # Custum Kubeadm initialization service
   systemd.services.kubeadm-init = {
@@ -80,7 +75,7 @@
             exit 0
           fi
           
-          # Initialize cluster
+          # Initialize cluster with non-overlapping CIDR
           ${pkgs.kubernetes}/bin/kubeadm init \
             --pod-network-cidr=10.244.0.0/16 \
             --service-cidr=10.96.0.0/12 \
@@ -153,14 +148,18 @@
             exit 1
           fi
           
-          # Create shared directory
+          # Create shared directory and make accessible
           mkdir -p /tmp/k8s-shared
           
           # Generate join command and save to shared location
           ${pkgs.kubernetes}/bin/kubeadm token create --print-join-command > /tmp/k8s-shared/join-command.txt
           chmod 644 /tmp/k8s-shared/join-command.txt
           
+          # Also create a simple HTTP server for easy access (Optional)
+          ${pkgs.python3}/bin/python3 -m http.server 8888 -d /tmp/k8s-shared &
+          
           echo "Join command saved to /tmp/k8s-shared/join-command.txt"
+          echo "Also available via HTTP at :8888/join-command.txt"
         '';
       in "${genJoinScript}";
     };
@@ -186,18 +185,14 @@
     wantedBy = [ "timers.target" ];
   };
 
-  # System tuning for Kubernetes
+  # System tuning for Kubernetes (bridge settings handled by kubelet module)
   boot.kernel.sysctl = {
-    "net.bridge.bridge-nf-call-iptables" = 1;
-    "net.bridge.bridge-nf-call-ip6tables" = 1;
-    "net.ipv4.ip_forward" = 1;
-    "net.ipv4.conf.all.forwarding" = 1;
     "fs.inotify.max_user_watches" = 524288;
     "fs.inotify.max_user_instances" = 512;
   };
 
-  # Load required kernel modules
-  boot.kernelModules = [ "br_netfilter" "overlay" ];
+  # Load required kernel modules (br_netfilter handled by kubelet module)
+  boot.kernelModules = [ "overlay" ];
 
   # Environment variables for Kubernetes
   environment.variables = {
