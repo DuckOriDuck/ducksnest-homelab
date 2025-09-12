@@ -16,6 +16,12 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: DeterminateSystems/flake-checker-action@main
 
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          aws-region: ${{ vars.AWS_REGION }}
+      
       - name: set nix flake and cache substitutor
         run: |
           NIX_CONFIG=$'experimental-features = nix-command flakes\nsubstituters = s3://another-nix-cache-test?region=ap-northeast-2\nrequire-sigs = false\nnarinfo-cache-negative-ttl = 0'
@@ -23,12 +29,6 @@ jobs:
       - name: Run `nix build ec2-controlplane`
         run: nix build .#ec2-controlplane
         
-      - name: Configure AWS Credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE }}
-          aws-region: ${{ vars.AWS_REGION }}
-      
       - name: Upload to S3 Nix cache
         shell: bash
         run: |
