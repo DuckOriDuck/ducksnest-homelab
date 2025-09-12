@@ -30,7 +30,7 @@ if [ -z "$AUTH_KEY" ] || [ "$AUTH_KEY" = "null" ]; then
     exit 1
 fi
 
-# Connect to Tailscale (Tailscale should be available through NixOS configuration)
+# Connect to Tailscale
 tailscale up \
     --authkey="$AUTH_KEY" \
     --accept-routes \
@@ -40,6 +40,29 @@ tailscale up \
 sleep 10
 TAILSCALE_IP=$(tailscale ip -4)
 echo "Tailscale connected with IP: $TAILSCALE_IP"
+
+# Wait for Kubernetes API server to be ready
+echo "Waiting for Kubernetes API server to be ready..."
+while ! kubectl get nodes >/dev/null 2>&1; do
+    echo "API server not ready, waiting 10 seconds..."
+    sleep 10
+done
+
+echo "Kubernetes API server is ready!"
+
+# Install Calico CNI with MTU optimization for Tailscale
+echo "Installing Calico CNI with Tailscale MTU configuration..."
+kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.26.0/manifests/calico.yaml
+
+# Wait for initial Calico to be ready
+echo "Waiting for Calico to be ready..."
+kubectl wait --for=condition=ready pod -l k8s-app=calico-node -n kube-system --timeout=300s
+
+# Configure MTU for Tailscale compatibility
+echo "Configuring Calico MTU for Tailscale..."
+kubectl patch installation default --type merge -p '{"spec":{"calicoNetwork":{"mtu":1280}}}'
+
+echo "Calico installation with Tailscale MTU optimization completed!"
 
 
 # Create status file
