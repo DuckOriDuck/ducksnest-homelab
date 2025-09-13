@@ -1,7 +1,11 @@
 { config, pkgs, ... }:
 
 {
-  virtualisation.cri-o.enable = true;
+  virtualisation.cri-o = {
+    enable = true;
+    settings.crio.network.network_dir = "";
+    settings.crio.network.plugin_dirs = [];
+  };
 
   environment.systemPackages = with pkgs; [
     kubernetes
