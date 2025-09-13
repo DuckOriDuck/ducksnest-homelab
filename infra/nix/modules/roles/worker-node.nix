@@ -31,14 +31,31 @@
     roles = ["node"];
     masterAddress = "ducksnest-cp";
     clusterCidr = "10.244.0.0/16";
-    
+    easyCerts = false;
+
     kubelet = {
       enable = true;
       registerNode = true;
       containerRuntimeEndpoint = "unix:///var/run/crio/crio.sock";
+      cni = {
+        packages = with pkgs; [ calico-cni-plugin cni-plugins ];
+        config = [{
+          name = "calico";
+          cniVersion = "0.4.0";
+          type = "calico";
+          ipam = {
+            type = "calico-ipam";
+          };
+        }];
+      };
     };
-    
-    proxy.enable = true;
+
+    flannel.enable = false;
+    proxy.enable = false;
+    apiserver.enable = false;
+    controllerManager.enable = false; 
+    scheduler.enable = false;
+    addons.dns.enable = false;
   };
 
   boot.kernel.sysctl = {
@@ -48,4 +65,8 @@
   };
 
   boot.kernelModules = [ "overlay" "br_netfilter" ];
+
+  systemd.services = {
+    kubelet.after = [ "tailscaled.service" "crio.service" ];
+  };
 }

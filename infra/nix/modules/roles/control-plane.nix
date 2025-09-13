@@ -49,10 +49,23 @@
       enable = true;
       registerNode = true;
       containerRuntimeEndpoint = "unix:///var/run/crio/crio.sock";
+      cni = {
+        packages = with pkgs; [ calico-cni-plugin cni-plugins ];
+        config = [{
+          name = "calico";
+          cniVersion = "0.4.0";
+          type = "calico";
+          ipam = {
+            type = "calico-ipam";
+          };
+        }];
+      };
     };
     
-    proxy.enable = true;
+    proxy.enable = false;
     addons.dns.enable = true;
+    
+    flannel.enable = false;
   };
 
   boot.kernel.sysctl = {
@@ -62,6 +75,7 @@
   };
 
   boot.kernelModules = [ "overlay" "br_netfilter" ];
+  boot.kernelPackages = pkgs.linuxPackages;
 
   environment.variables.KUBECONFIG = "/etc/kubernetes/admin.conf";
 }

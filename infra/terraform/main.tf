@@ -23,19 +23,19 @@ provider "aws" {
 }
 
 
-# AMI
-data "aws_ami" "nixos_x86_64" {
+# Custom baked AMI
+data "aws_ami" "nixos_custom" {
   most_recent = true
-  owners      = ["427812963091"]
+  owners      = ["self"]
 
   filter {
     name   = "name"
-    values = ["nixos/25.05*"]
+    values = ["NixOS-25.05-updated-kernel-image"]
   }
 
   filter {
-    name   = "architecture"
-    values = ["x86_64"]
+    name   = "state"
+    values = ["available"]
   }
 }
 
@@ -46,7 +46,7 @@ data "aws_iam_instance_profile" "k8s_cp_profile" {
 
 # EC2 Instances
 resource "aws_instance" "k8s_control_plane" {
-  ami                    = data.aws_ami.nixos_x86_64.id
+  ami                    = data.aws_ami.nixos_custom.id
   instance_type          = "t3.medium"
   key_name               = var.key_name
   subnet_id              = aws_subnet.public_c.id
