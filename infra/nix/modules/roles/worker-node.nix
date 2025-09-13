@@ -38,7 +38,6 @@
       containerRuntimeEndpoint = "unix:///var/run/crio/crio.sock";
     };
 
-    proxy.enable = true;
     flannel.enable = false;
   };
 
