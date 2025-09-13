@@ -99,5 +99,31 @@
   boot.kernelModules = [ "overlay" "br_netfilter" ];
   boot.kernelPackages = pkgs.linuxPackages;
 
+  systemd.services.setup-kubeconfig = {
+    description = "Setup kubernetes admin config symlink";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "kube-controller-manager.service" "kube-scheduler.service" "kubelet.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      pick(){
+        ${pkgs.systemd}/bin/systemctl show "$1" -p ExecStart --value 2>/dev/null \
+        | ${pkgs.gnused}/bin/sed -n "s/.*--kubeconfig=\([^ ]*\).*/\1/p"
+      }
+      for u in kube-controller-manager kube-scheduler kube-proxy kubelet; do
+        p="$(pick "$u")"
+        if [ -n "$p" ] && [ -f "$p" ]; then
+          mkdir -p /etc/kubernetes
+          ln -sf "$p" /etc/kubernetes/admin.conf
+          echo "linked: /etc/kubernetes/admin.conf -> $p"
+          exit 0
+        fi
+      done
+      echo "Could not find kubeconfig in any systemd unit."; exit 1
+    '';
+  };
+
   environment.variables.KUBECONFIG = "/etc/kubernetes/admin.conf";
 }
