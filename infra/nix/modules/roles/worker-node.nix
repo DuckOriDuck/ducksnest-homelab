@@ -3,8 +3,8 @@
 {
   virtualisation.cri-o.enable = true;
   
-  environment.etc."cni/net.d/10-crio-bridge.conflist".enable = lib.mkForce false;
-  environment.etc."cni/net.d/99-loopback.conflist".enable = lib.mkForce false;
+  #environment.etc."cni/net.d/10-crio-bridge.conflist".enable = lib.mkForce false;
+  #environment.etc."cni/net.d/99-loopback.conflist".enable = lib.mkForce false;
 
   environment.systemPackages = with pkgs; [
     kubernetes
