@@ -31,15 +31,14 @@
     roles = ["node"];
     masterAddress = "ducksnest-cp";
     clusterCidr = "10.244.0.0/16";
-    
+
     kubelet = {
       enable = true;
       registerNode = true;
       containerRuntimeEndpoint = "unix:///var/run/crio/crio.sock";
     };
-    
+
     proxy.enable = true;
-    
     flannel.enable = false;
   };
 
