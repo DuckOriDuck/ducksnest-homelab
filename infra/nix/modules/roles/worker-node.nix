@@ -39,6 +39,8 @@
     };
     
     proxy.enable = true;
+    
+    flannel.enable = false;
   };
 
   boot.kernel.sysctl = {

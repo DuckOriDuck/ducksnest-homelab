@@ -53,6 +53,8 @@
     
     proxy.enable = true;
     addons.dns.enable = true;
+    
+    flannel.enable = false;
   };
 
   boot.kernel.sysctl = {
@@ -62,6 +64,7 @@
   };
 
   boot.kernelModules = [ "overlay" "br_netfilter" ];
+  boot.kernelPackages = pkgs.linuxPackages_latest;
 
   environment.variables.KUBECONFIG = "/etc/kubernetes/admin.conf";
 }
