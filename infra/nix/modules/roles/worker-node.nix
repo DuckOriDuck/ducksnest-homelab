@@ -1,84 +1,51 @@
-{ config, pkgs, ... }:
+{ config, pkgs, lib, ... }:
 
 {
-  # Worker node configuration for Kubernetes cluster
+  virtualisation.cri-o.enable = true;
   
-  # Enable container runtime
-  virtualisation = {
-    cri-o = {
-      enable = true;
-    };
-  };
+  environment.etc."cni/net.d/10-crio-bridge.conflist".enable = lib.mkForce false;
+  environment.etc."cni/net.d/99-loopback.conflist".enable = lib.mkForce false;
 
-  # Network configuration for cluster
-  networking = {
-    firewall = {
-      allowedTCPPorts = [
-        22     # SSH
-        10250  # kubelet API
-        8472   # Flannel VXLAN
-      ];
-      allowedUDPPorts = [
-        8472   # Flannel VXLAN
-      ];
-      allowedTCPPortRanges = [
-        { from = 30000; to = 32767; }  # NodePort services
-      ];
-    };
-  };
-
-  # System packages for worker nodes
   environment.systemPackages = with pkgs; [
-    # Container tools
-    cri-o
-    cri-tools
-    
-    # Kubernetes tools
     kubernetes
-    kubectl
     k9s
-    
-    # Network tools
-    flannel
-    
-    # Monitoring
-    prometheus-node-exporter
-
-    # git
+    calico-cni-plugin
+    cri-tools
+    util-linux
+    coreutils
+    iproute2
+    iptables
+    ethtool
+    socat
     git
-
-    #extra
+    curl
+    wget
+    unzip
+    htop
+    tree
+    vim
     fastfetchMinimal
   ];
 
-  # Services for worker nodes
-  services = {
-    # Node exporter for monitoring
-    prometheus.exporters.node = {
+  services.kubernetes = {
+    roles = ["node"];
+    masterAddress = "ducksnest-cp";
+    clusterCidr = "10.244.0.0/16";
+    
+    kubelet = {
       enable = true;
-      port = 9100;
-      enabledCollectors = [
-        "systemd"
-        "filesystem" 
-        "netdev"
-        "meminfo"
-        "cpu"
-        "loadavg"
-      ];
+      registerNode = true;
+      containerRuntimeEndpoint = "unix:///var/run/crio/crio.sock";
     };
-
+    
+    proxy.enable = true;
   };
 
-  # System tuning for Kubernetes
   boot.kernel.sysctl = {
-    "net.bridge.bridge-nf-call-iptables" = 1;
-    "net.bridge.bridge-nf-call-ip6tables" = 1;
-    "net.ipv4.ip_forward" = 1;
-    "net.ipv4.conf.all.forwarding" = 1;
     "fs.inotify.max_user_watches" = 524288;
     "fs.inotify.max_user_instances" = 512;
+    "vm.max_map_count" = 262144;
   };
 
-  # Load required kernel modules
-  boot.kernelModules = [ "br_netfilter" "overlay" ];
+  boot.kernelModules = [ "overlay" "br_netfilter" ];
 }
