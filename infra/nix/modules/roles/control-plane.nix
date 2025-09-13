@@ -66,6 +66,12 @@
     addons.dns.enable = true;
     
     flannel.enable = false;
+    
+
+    etcd = {
+      enable = true;
+      peerTLS = false;
+    };
   };
 
   boot.kernel.sysctl = {
