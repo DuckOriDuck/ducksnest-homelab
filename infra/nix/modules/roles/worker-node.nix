@@ -1,11 +1,8 @@
 { config, pkgs, lib, ... }:
 
 {
-  virtualisation.cri-o.enable = true;
-  virtualisation.containerd.enable = lib.mkForce false;
+  virtualisation.containerd.enable = true;
   
-  environment.etc."cni/net.d/10-crio-bridge.conflist".enable = lib.mkForce false;
-  environment.etc."cni/net.d/99-loopback.conflist".enable = lib.mkForce false;
 
   environment.systemPackages = with pkgs; [
     kubernetes
@@ -37,7 +34,7 @@
     kubelet = {
       enable = true;
       registerNode = true;
-      containerRuntimeEndpoint = "unix:///var/run/crio/crio.sock";
+      containerRuntimeEndpoint = "unix:///var/run/containerd/containerd.sock";
       cni = {
         packages = with pkgs; [ calico-cni-plugin cni-plugins ];
         config = [{
@@ -68,6 +65,6 @@
   boot.kernelModules = [ "overlay" "br_netfilter" ];
 
   systemd.services = {
-    kubelet.after = [ "tailscaled.service" "crio.service" ];
+    kubelet.after = [ "tailscaled.service" "containerd.service" ];
   };
 }
