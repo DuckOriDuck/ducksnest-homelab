@@ -49,4 +49,9 @@
   };
 
   boot.kernelModules = [ "overlay" "br_netfilter" ];
+
+  systemd.services = {
+    kubelet.after = [ "tailscaled.service" "crio.service" ];
+    kube-proxy.after = [ "tailscaled.service" ];
+  };
 }
