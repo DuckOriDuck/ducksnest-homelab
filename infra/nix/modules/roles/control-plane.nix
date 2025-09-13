@@ -62,7 +62,7 @@
       };
     };
     
-    proxy.enable = true;
+    proxy.enable = false;
     addons.dns.enable = true;
     
     flannel.enable = false;
@@ -75,7 +75,7 @@
   };
 
   boot.kernelModules = [ "overlay" "br_netfilter" ];
-  boot.kernelPackages = pkgs.linuxPackages_latest;
+  boot.kernelPackages = pkgs.linuxPackages;
 
   environment.variables.KUBECONFIG = "/etc/kubernetes/admin.conf";
 }
