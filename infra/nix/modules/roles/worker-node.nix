@@ -68,6 +68,5 @@
 
   systemd.services = {
     kubelet.after = [ "tailscaled.service" "crio.service" ];
-    kube-proxy.after = [ "tailscaled.service" ];
   };
 }
