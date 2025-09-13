@@ -31,6 +31,7 @@
     roles = ["node"];
     masterAddress = "ducksnest-cp";
     clusterCidr = "10.244.0.0/16";
+    easyCerts = false;
 
     kubelet = {
       enable = true;
@@ -50,6 +51,11 @@
     };
 
     flannel.enable = false;
+    proxy.enable = false;
+    apiserver.enable = false;
+    controllerManager.enable = false; 
+    scheduler.enable = false;
+    addons.dns.enable = false;
   };
 
   boot.kernel.sysctl = {
