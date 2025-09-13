@@ -7,14 +7,6 @@ set -euo pipefail
 HOSTNAME="${hostname}"
 AWS_REGION="${aws_region}"
 
-
-NIX_CONFIG=$'experimental-features = nix-command flakes\nsubstituters = s3://another-nix-cache-test?region=ap-northeast-2\nrequire-sigs = false\nnarinfo-cache-negative-ttl = 0' \
-sudo nixos-rebuild switch \
-  --flake 'github:DuckOriDuck/ducksnest-homelab?dir=infra/nix#ec2-controlplane' \
-  --option builders '' \
-  --option fallback false \
-  --refresh
-
 # Configure AWS CLI region
 aws configure set region "$AWS_REGION"
 
@@ -29,6 +21,13 @@ if [ -z "$AUTH_KEY" ] || [ "$AUTH_KEY" = "null" ]; then
     echo "ERROR: Failed to retrieve Tailscale auth key"
     exit 1
 fi
+
+NIX_CONFIG=$'experimental-features = nix-command flakes\nsubstituters = s3://another-nix-cache-test?region=ap-northeast-2\nrequire-sigs = false\nnarinfo-cache-negative-ttl = 0' \
+sudo nixos-rebuild switch \
+  --flake 'github:DuckOriDuck/ducksnest-homelab?dir=infra/nix#ec2-controlplane' \
+  --option builders '' \
+  --option fallback false \
+  --refresh
 
 # Connect to Tailscale
 tailscale up \
