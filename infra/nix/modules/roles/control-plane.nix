@@ -39,10 +39,32 @@
     apiserver = {
       enable = true;
       bindAddress = "0.0.0.0";
+      clientCaFile = "/var/lib/kubernetes/secrets/ca.pem";
+      tlsCertFile = "/var/lib/kubernetes/secrets/kube-apiserver.pem";
+      tlsKeyFile = "/var/lib/kubernetes/secrets/kube-apiserver-key.pem";
+      kubeletClientCertFile = "/var/lib/kubernetes/secrets/kube-apiserver-kubelet-client.pem";
+      kubeletClientKeyFile = "/var/lib/kubernetes/secrets/kube-apiserver-kubelet-client-key.pem";
+      serviceAccountKeyFile = "/var/lib/kubernetes/secrets/service-account.pem";
+      serviceAccountSigningKeyFile = "/var/lib/kubernetes/secrets/service-account-key.pem";
+      etcd = {
+        servers = ["https://127.0.0.1:2379"];
+        caFile = "/var/lib/kubernetes/secrets/ca.pem";
+        certFile = "/var/lib/kubernetes/secrets/kube-apiserver-etcd-client.pem";
+        keyFile = "/var/lib/kubernetes/secrets/kube-apiserver-etcd-client-key.pem";
+      };
     };
     
-    controllerManager.enable = true;
-    scheduler.enable = true;
+    controllerManager = {
+      enable = true;
+      rootCaFile = "/var/lib/kubernetes/secrets/ca.pem";
+      serviceAccountKeyFile = "/var/lib/kubernetes/secrets/service-account-key.pem";
+      tlsCertFile = "/var/lib/kubernetes/secrets/kube-controller-manager.pem";
+      tlsKeyFile = "/var/lib/kubernetes/secrets/kube-controller-manager-key.pem";
+    };
+
+    scheduler = {
+      enable = true;
+    };
     easyCerts = true;
     
     kubelet = {
