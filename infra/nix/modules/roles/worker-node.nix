@@ -30,9 +30,9 @@
 
   services.kubernetes = {
     roles = ["node"];
-    masterAddress = "ducksnest-cp";
+    masterAddress = "ducksnest-controlplane";
     clusterCidr = "10.244.0.0/16";
-    easyCerts = false;
+    easyCerts = true;
 
     kubelet = {
       enable = true;
