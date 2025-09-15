@@ -36,6 +36,7 @@
     apiserver = {
       enable = true;
       bindAddress = "0.0.0.0";
+      extraSANs = ["ducksnest-controlplane"];
       clientCaFile = "/var/lib/kubernetes/secrets/ca.pem";
       tlsCertFile = "/var/lib/kubernetes/secrets/kube-apiserver.pem";
       tlsKeyFile = "/var/lib/kubernetes/secrets/kube-apiserver-key.pem";
