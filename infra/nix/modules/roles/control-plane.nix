@@ -30,7 +30,7 @@
 
   services.kubernetes = {
     roles = ["master"];
-    masterAddress = "ducksnest-controlplane";
+    masterAddress = "127.0.0.1";
     clusterCidr = "10.244.0.0/16";
     
     apiserver = {
