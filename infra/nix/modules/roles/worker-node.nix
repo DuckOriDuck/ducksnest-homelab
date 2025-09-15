@@ -35,6 +35,15 @@
       enable = true;
       registerNode = true;
       containerRuntimeEndpoint = "unix:///var/run/containerd/containerd.sock";
+      clientCaFile = "/var/lib/kubernetes/secrets/ca.pem";
+      tlsCertFile = "/var/lib/kubelet/pki/kubelet.crt";
+      tlsKeyFile = "/var/lib/kubelet/pki/kubelet.key";
+      kubeconfig = {
+        server = "https://ducksnest-controlplane:6443";
+        caFile = "/var/lib/kubernetes/secrets/ca.pem";
+        certFile = "/var/lib/kubelet/pki/kubelet.crt";
+        keyFile = "/var/lib/kubelet/pki/kubelet.key";
+      };
       cni = {
         packages = with pkgs; [ calico-cni-plugin cni-plugins ];
         config = [{
