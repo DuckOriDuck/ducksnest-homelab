@@ -122,5 +122,5 @@
     '';
   };
 
-  environment.variables.KUBECONFIG = "/etc/kubernetes/admin.conf";
+  environment.variables.KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
 }
