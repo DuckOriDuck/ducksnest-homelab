@@ -16,6 +16,7 @@
       hostSystems = {
         laptop-old = "x86_64-linux";
         laptop-ultra = "x86_64-linux";
+        laptop-firebat = "x86_64-linux";
         ec2-controlplane = "x86_64-linux";
       };
       
@@ -47,6 +48,7 @@
       nixosConfigurations = {
         laptop-old       = mkNixosConfig "laptop-old"       hostSystems.laptop-old;
         laptop-ultra     = mkNixosConfig "laptop-ultra"     hostSystems.laptop-ultra;
+        laptop-firebat   = mkNixosConfig "laptop-firebat"   hostSystems.laptop-firebat;
         ec2-controlplane = mkNixosConfig "ec2-controlplane" hostSystems.ec2-controlplane;
       };
 
@@ -55,6 +57,7 @@
         x86_64-linux.default = self.nixosConfigurations.laptop-ultra.config.system.build.toplevel;
         x86_64-linux.laptop-old = self.nixosConfigurations.laptop-old.config.system.build.toplevel;
         x86_64-linux.laptop-ultra = self.nixosConfigurations.laptop-ultra.config.system.build.toplevel;
+        x86_64-linux.laptop-firebat = self.nixosConfigurations.laptop-firebat.config.system.build.toplevel;
         x86_64-linux.ec2-controlplane = self.nixosConfigurations.ec2-controlplane.config.system.build.toplevel;
       };
     };
