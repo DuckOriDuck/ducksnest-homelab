@@ -1,4 +1,4 @@
-# NixOS configuration for laptop-firebat - Worker node
+# NixOS configuration for laptop-firebat - Control Plane
 { config, pkgs, ... }:
 
 {
@@ -8,7 +8,7 @@
     ../../modules/common/security.nix
     ../../modules/common/users.nix
     ../../modules/boot/boot-uefi.nix
-    ../../modules/roles/worker-node.nix
+    ../../modules/roles/control-plane.nix
     ../../modules/roles/tailscale-client.nix
   ];
 
@@ -82,12 +82,10 @@
     wheelNeedsPassword = true;
   };
 
-  # Environment variables for development worker node
+  # Environment variables for control plane
   environment.variables = {
-    KUBECONFIG = "/etc/kubernetes/admin.conf";
-    NODE_ENV = "development";
+    HOMELAB_ROLE = "control-plane";
     HOMELAB_ENV = "laptop-firebat";
-    HOMELAB_ROLE = "worker-node-dev";
   };
 
   # Development-focused shell aliases
