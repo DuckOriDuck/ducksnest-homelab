@@ -22,100 +22,16 @@
     "mitigations=off"  # Better performance for development
   ];
 
-  # Additional development packages for worker node
-  environment.systemPackages = with pkgs; [
 
-    # Additional development tools
-    podman
-    buildah
-    skopeo
-
-    # Virtualization for testing
-    qemu
-    libvirt
-    virt-manager
-
-    # Network debugging
-    tcpdump
-    iftop
-    nethogs
-
-    # Text editors
-    neovim
-    emacs
-
-    # File management
-    mc
-    ranger
-  ];
-
-  # Services specific to development worker node
-  services = {
-    # OpenSSH daemon
-    openssh = {
-      enable = true;
-      openFirewall = true;
-      settings = {
-        PermitRootLogin = "no";
-        PasswordAuthentication = false;
-      };
-    };
-
-    # Power management - no sleep
-    logind.extraConfig = ''
-      HandleLidSwitch=ignore
-      HandleLidSwitchDocked=ignore
-      HandleLidSwitchExternalPower=ignore
-      IdleAction=ignore
-    '';
-  };
-
-
-  # Virtualization setup
-  virtualisation = {
-    libvirtd.enable = true;
-  };
-
-  # Development-friendly security
-  security.sudo = {
-    enable = true;
-    wheelNeedsPassword = true;
-  };
-
-  # Environment variables for control plane
-  environment.variables = {
-    HOMELAB_ROLE = "control-plane";
-    HOMELAB_ENV = "laptop-firebat";
-  };
 
   # Development-focused shell aliases
   environment.shellAliases = {
-    # Kubernetes shortcuts
     k = "kubectl";
     kx = "kubectl explain";
     kgp = "kubectl get pods";
     kgs = "kubectl get services";
-
-    # Docker shortcuts
-    d = "docker";
-    dc = "docker-compose";
-
-    # Infrastructure shortcuts
-    tf = "terraform";
-    ans = "ansible";
-
-    # Git shortcuts
-    g = "git";
-    gs = "git status";
-    ga = "git add";
-    gc = "git commit";
-    gp = "git push";
-
-    # System monitoring
     htop = "btop";
     ports = "ss -tulpn";
-
-    # Homelab management
     homelab-rebuild = "sudo nixos-rebuild switch --flake .#laptop-firebat";
   };
 
