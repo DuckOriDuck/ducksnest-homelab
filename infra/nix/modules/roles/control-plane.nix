@@ -1,5 +1,8 @@
 { config, pkgs, lib, ... }:
 
+let
+  secretsDir = "/var/lib/kubernetes/secrets";
+in
 {
   virtualisation.containerd.enable = true;
 
@@ -30,7 +33,7 @@
   ];
 
   services.kubernetes = {
-    roles = ["master"];
+    #roles = ["master"];
     masterAddress = "127.0.0.1";
     clusterCidr = "10.244.0.0/16";
     
@@ -38,33 +41,33 @@
       enable = true;
       bindAddress = "0.0.0.0";
       extraSANs = ["ducksnest-controlplane"];
-      clientCaFile = "/var/lib/kubernetes/secrets/ca.pem";
-      tlsCertFile = "/var/lib/kubernetes/secrets/kube-apiserver.pem";
-      tlsKeyFile = "/var/lib/kubernetes/secrets/kube-apiserver-key.pem";
-      kubeletClientCertFile = "/var/lib/kubernetes/secrets/kube-apiserver-kubelet-client.pem";
-      kubeletClientKeyFile = "/var/lib/kubernetes/secrets/kube-apiserver-kubelet-client-key.pem";
-      serviceAccountKeyFile = "/var/lib/kubernetes/secrets/service-account.pem";
-      serviceAccountSigningKeyFile = "/var/lib/kubernetes/secrets/service-account-key.pem";
+      clientCaFile = "${secretsDir}/ca.pem";
+      tlsCertFile = "${secretsDir}/kube-apiserver.pem";
+      tlsKeyFile = "${secretsDir}/kube-apiserver-key.pem";
+      kubeletClientCertFile = "${secretsDir}/kube-apiserver-kubelet-client.pem";
+      kubeletClientKeyFile = "${secretsDir}/kube-apiserver-kubelet-client-key.pem";
+      serviceAccountKeyFile = "${secretsDir}/service-account.pem";
+      serviceAccountSigningKeyFile = "${secretsDir}/service-account-key.pem";
       etcd = {
         servers = ["https://127.0.0.1:2379"];
-        caFile = "/var/lib/kubernetes/secrets/ca.pem";
-        certFile = "/var/lib/kubernetes/secrets/kube-apiserver-etcd-client.pem";
-        keyFile = "/var/lib/kubernetes/secrets/kube-apiserver-etcd-client-key.pem";
+        caFile = "${secretsDir}/ca.pem";
+        certFile = "${secretsDir}/kube-apiserver-etcd-client.pem";
+        keyFile = "${secretsDir}/kube-apiserver-etcd-client-key.pem";
       };
     };
     
     controllerManager = {
       enable = true;
-      rootCaFile = "/var/lib/kubernetes/secrets/ca.pem";
-      serviceAccountKeyFile = "/var/lib/kubernetes/secrets/service-account-key.pem";
-      tlsCertFile = "/var/lib/kubernetes/secrets/kube-controller-manager.pem";
-      tlsKeyFile = "/var/lib/kubernetes/secrets/kube-controller-manager-key.pem";
+      rootCaFile = "${secretsDir}/ca.pem";
+      serviceAccountKeyFile = "${secretsDir}/service-account-key.pem";
+      tlsCertFile = "${secretsDir}/kube-controller-manager.pem";
+      tlsKeyFile = "${secretsDir}/kube-controller-manager-key.pem";
     };
 
     scheduler = {
       enable = true;
     };
-    easyCerts = true;
+    #easyCerts = true;
     
     kubelet = {
       enable = true;
