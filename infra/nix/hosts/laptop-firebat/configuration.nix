@@ -1,5 +1,5 @@
-# NixOS configuration for laptop-firebat - Control Plane
-{ config, pkgs, ... }:
+# NixOS configuration for laptop-firebat
+{ config, pkgs, k8sRole, ... }:
 
 {
   imports = [
@@ -8,8 +8,10 @@
     ../../modules/common/security.nix
     ../../modules/common/users.nix
     ../../modules/boot/boot-uefi.nix
-    ../../modules/roles/control-plane.nix
     ../../modules/roles/tailscale-client.nix
+    (if k8sRole == "control-plane"
+     then ../../modules/roles/control-plane.nix
+     else ../../modules/roles/worker-node.nix)
   ];
 
   # Hostname

@@ -17,46 +17,47 @@
 
   outputs = { self, nixpkgs, nixpkgs-unstable, nixos-generators, agenix, k8nix-cert-management }:
     let
-      # System architectures for each host
+
       hostSystems = {
         laptop-old = "x86_64-linux";
         laptop-ultra = "x86_64-linux";
         laptop-firebat = "x86_64-linux";
         ec2-controlplane = "x86_64-linux";
       };
-      
-      # Overlay for unstable packages
+
+      k8sRoles = {
+        laptop-old = "worker";
+        laptop-ultra = "worker";
+        laptop-firebat = "control-plane";
+        ec2-controlplane = "worker";
+      };
+
       overlays = [
         (final: prev: {
           unstable = import nixpkgs-unstable { system = prev.system; };
         })
       ];
 
-      # Function to create NixOS configuration
-      mkNixosConfig = hostname: system:
+      mkNixosConfig = hostname: system: role:
         nixpkgs.lib.nixosSystem {
           inherit system;
 
           specialArgs = {
             inherit agenix k8nix-cert-management;
+            k8sRole = role;
           };
 
           modules = [
-            # Apply overlays globally
             ({ config, pkgs, ... }: {
               nixpkgs.overlays = overlays;
             })
 
-            # Agenix module for secret management
             agenix.nixosModules.default
 
-            # CertToolkit module for certificate management
             k8nix-cert-management.nixosModules.certToolkit
 
-            # Shared CA definitions
             ./modules/certs/ca.nix
 
-            # Import the host-specific configuration
             ./hosts/${hostname}/configuration.nix
           ];
         };
@@ -64,10 +65,10 @@
     in {
       # Host configurations
       nixosConfigurations = {
-        laptop-old       = mkNixosConfig "laptop-old"       hostSystems.laptop-old;
-        laptop-ultra     = mkNixosConfig "laptop-ultra"     hostSystems.laptop-ultra;
-        laptop-firebat   = mkNixosConfig "laptop-firebat"   hostSystems.laptop-firebat;
-        ec2-controlplane = mkNixosConfig "ec2-controlplane" hostSystems.ec2-controlplane;
+        laptop-old       = mkNixosConfig "laptop-old"       hostSystems.laptop-old       k8sRoles.laptop-old;
+        laptop-ultra     = mkNixosConfig "laptop-ultra"     hostSystems.laptop-ultra     k8sRoles.laptop-ultra;
+        laptop-firebat   = mkNixosConfig "laptop-firebat"   hostSystems.laptop-firebat   k8sRoles.laptop-firebat;
+        ec2-controlplane = mkNixosConfig "ec2-controlplane" hostSystems.ec2-controlplane k8sRoles.ec2-controlplane;
       };
 
       # Certificate management apps
