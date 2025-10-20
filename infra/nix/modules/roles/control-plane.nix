@@ -1,7 +1,9 @@
 { config, pkgs, lib, ... }:
 
 let
-  secretsDir = "/var/lib/kubernetes/secrets";
+  # Certificate paths from certToolkit
+  caCert = config.certToolkit.cas.k8s.ca.path;
+  certs = config.certToolkit.cas.k8s.certs;
 in
 {
   virtualisation.containerd.enable = true;
@@ -33,7 +35,6 @@ in
   ];
 
   services.kubernetes = {
-    #roles = ["master"];
     masterAddress = "127.0.0.1";
     clusterCidr = "10.244.0.0/16";
     
@@ -41,38 +42,48 @@ in
       enable = true;
       bindAddress = "0.0.0.0";
       extraSANs = ["ducksnest-controlplane"];
-      clientCaFile = "${secretsDir}/ca.pem";
-      tlsCertFile = "${secretsDir}/kube-apiserver.pem";
-      tlsKeyFile = "${secretsDir}/kube-apiserver-key.pem";
-      kubeletClientCertFile = "${secretsDir}/kube-apiserver-kubelet-client.pem";
-      kubeletClientKeyFile = "${secretsDir}/kube-apiserver-kubelet-client-key.pem";
-      serviceAccountKeyFile = "${secretsDir}/service-account.pem";
-      serviceAccountSigningKeyFile = "${secretsDir}/service-account-key.pem";
+      clientCaFile = caCert;
+      tlsCertFile = certs.kube-apiserver.path;
+      tlsKeyFile = certs.kube-apiserver.keyPath;
+      kubeletClientCertFile = certs.kube-apiserver-kubelet-client.path;
+      kubeletClientKeyFile = certs.kube-apiserver-kubelet-client.keyPath;
+      serviceAccountKeyFile = certs.service-account.path;
+      serviceAccountSigningKeyFile = certs.service-account.keyPath;
       etcd = {
         servers = ["https://127.0.0.1:2379"];
-        caFile = "${secretsDir}/ca.pem";
-        certFile = "${secretsDir}/kube-apiserver-etcd-client.pem";
-        keyFile = "${secretsDir}/kube-apiserver-etcd-client-key.pem";
+        caFile = caCert;
+        certFile = certs.kube-apiserver-etcd-client.path;
+        keyFile = certs.kube-apiserver-etcd-client.keyPath;
       };
     };
     
     controllerManager = {
       enable = true;
-      rootCaFile = "${secretsDir}/ca.pem";
-      serviceAccountKeyFile = "${secretsDir}/service-account-key.pem";
-      tlsCertFile = "${secretsDir}/kube-controller-manager.pem";
-      tlsKeyFile = "${secretsDir}/kube-controller-manager-key.pem";
+      rootCaFile = caCert;
+      serviceAccountKeyFile = certs.service-account.keyPath;
+      tlsCertFile = certs.kube-controller-manager.path;
+      tlsKeyFile = certs.kube-controller-manager.keyPath;
     };
 
     scheduler = {
       enable = true;
     };
-    #easyCerts = true;
     
     kubelet = {
       enable = true;
       registerNode = true;
+      unschedulable = true;
       containerRuntimeEndpoint = "unix:///var/run/containerd/containerd.sock";
+      taints = {
+        master = {
+          key = "node-role.kubernetes.io/control-plane";
+          value = "true";
+          effect = "NoSchedule";
+        };
+      };
+      clientCaFile = caCert;
+      tlsCertFile = certs.kubelet.path;
+      tlsKeyFile = certs.kubelet.keyPath;
       cni = {
         packages = with pkgs; [ calico-cni-plugin cni-plugins ];
         config = [{
@@ -85,7 +96,7 @@ in
         }];
       };
     };
-    
+
     proxy.enable = false;
     addons.dns.enable = true;
     

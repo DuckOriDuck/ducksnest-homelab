@@ -1,5 +1,10 @@
 { config, pkgs, lib, ... }:
 
+let
+  # Certificate paths from certToolkit
+  caCert = config.certToolkit.cas.k8s.ca.path;
+  certs = config.certToolkit.cas.k8s.certs;
+in
 {
   virtualisation.containerd.enable = true;
   
@@ -26,23 +31,21 @@
   ];
 
   services.kubernetes = {
-    roles = ["node"];
-    masterAddress = "ducksnest-controlplane";
+    masterAddress = "ducksnest-laptop-firebat";
     clusterCidr = "10.244.0.0/16";
-    easyCerts = true;
 
     kubelet = {
       enable = true;
       registerNode = true;
       containerRuntimeEndpoint = "unix:///var/run/containerd/containerd.sock";
-      clientCaFile = "/var/lib/kubernetes/secrets/ca.pem";
-      tlsCertFile = "/var/lib/kubelet/pki/kubelet.crt";
-      tlsKeyFile = "/var/lib/kubelet/pki/kubelet.key";
+      clientCaFile = caCert;
+      tlsCertFile = certs.kubelet.path;
+      tlsKeyFile = certs.kubelet.keyPath;
       kubeconfig = {
-        server = "https://ducksnest-controlplane:6443";
-        caFile = "/var/lib/kubernetes/secrets/ca.pem";
-        certFile = "/var/lib/kubelet/pki/kubelet.crt";
-        keyFile = "/var/lib/kubelet/pki/kubelet.key";
+        server = "https://ducksnest-laptop-firebat:6443";
+        caFile = caCert;
+        certFile = certs.kubelet.path;
+        keyFile = certs.kubelet.keyPath;
       };
       cni = {
         packages = with pkgs; [ calico-cni-plugin cni-plugins ];
