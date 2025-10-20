@@ -78,7 +78,7 @@
 
       etcd-client = {
         commonName = "etcd-client";
-        owner = "root";
+        owner = "kubernetes";
         usages = [ "client auth" ];
         expiry = "8760h";
       };
@@ -94,42 +94,42 @@
           "kubernetes.default.svc"
           "kubernetes.default.svc.cluster.local"
         ];
-        owner = "root";
+        owner = "kubernetes";
         usages = [ "server auth" ];
         expiry = "8760h";
       };
 
       kube-apiserver-kubelet-client = {
         commonName = "kube-apiserver-kubelet-client";
-        owner = "root";
+        owner = "kubernetes";
         usages = [ "client auth" ];
         expiry = "8760h";
       };
 
       kube-apiserver-etcd-client = {
         commonName = "kube-apiserver-etcd-client";
-        owner = "root";
+        owner = "kubernetes";
         usages = [ "client auth" ];
         expiry = "8760h";
       };
 
       kube-controller-manager = {
         commonName = "system:kube-controller-manager";
-        owner = "root";
+        owner = "kubernetes";
         usages = [ "client auth" ];
         expiry = "8760h";
       };
 
       kube-scheduler = {
         commonName = "system:kube-scheduler";
-        owner = "root";
+        owner = "kubernetes";
         usages = [ "client auth" ];
         expiry = "8760h";
       };
 
       kube-admin = {
         commonName = "kubernetes-admin";
-        owner = "root";
+        owner = "kubernetes";
         usages = [ "client auth" ];
         expiry = "8760h";
       };
