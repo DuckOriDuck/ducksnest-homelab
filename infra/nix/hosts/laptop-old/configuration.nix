@@ -28,6 +28,9 @@
     "intel_pstate=active"
   ];
 
+  # Disable swap for Kubernetes
+  swapDevices = [ ];
+
   # Services specific to worker node
   services = {
     # OpenSSH daemon
