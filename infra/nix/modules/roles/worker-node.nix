@@ -37,6 +37,7 @@ in
     kubelet = {
       enable = true;
       registerNode = true;
+      unschedulable = false;
       containerRuntimeEndpoint = "unix:///var/run/containerd/containerd.sock";
       clientCaFile = caCert;
       tlsCertFile = certs.kubelet.path;
