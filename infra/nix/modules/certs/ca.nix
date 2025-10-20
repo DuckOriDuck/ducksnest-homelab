@@ -133,6 +133,13 @@
         usages = [ "client auth" ];
         expiry = "8760h";
       };
+
+      service-account = {
+        commonName = "service-accounts";
+        owner = "root";
+        usages = [ "signing" ];
+        expiry = "8760h";
+      };
     })
   ];
 }
