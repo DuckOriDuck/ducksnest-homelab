@@ -98,7 +98,8 @@ in
       containerRuntimeEndpoint = "unix:///var/run/containerd/containerd.sock";
       taints = {
         control-plane = {
-          key = "node-role.kubernetes.io/control-plane";
+          key = "node-role.kubernetes.io/";
+          value = "";
           effect = "NoSchedule";
         };
       };
