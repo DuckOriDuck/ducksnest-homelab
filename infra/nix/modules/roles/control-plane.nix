@@ -139,29 +139,38 @@ in
   boot.kernelModules = [ "overlay" "br_netfilter" ];
   boot.kernelPackages = pkgs.linuxPackages;
 
-  systemd.services.setup-kubeconfig = {
-    description = "Setup kubernetes admin config symlink";
+  systemd.services.generate-admin-kubeconfig = {
+    description = "Generate admin kubeconfig";
     wantedBy = [ "multi-user.target" ];
-    after = [ "kube-controller-manager.service" "kube-scheduler.service" "kubelet.service" ];
+    after = [ "agenix.service" "kube-apiserver.service" ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
     };
     script = ''
-      pick(){
-        ${pkgs.systemd}/bin/systemctl show "$1" -p ExecStart --value 2>/dev/null \
-        | ${pkgs.gnused}/bin/sed -n "s/.*--kubeconfig=\([^ ]*\).*/\1/p"
-      }
-      for u in kube-controller-manager kube-scheduler kube-proxy kubelet; do
-        p="$(pick "$u")"
-        if [ -n "$p" ] && [ -f "$p" ]; then
-          mkdir -p /etc/kubernetes
-          ln -sf "$p" /etc/kubernetes/admin.conf
-          echo "linked: /etc/kubernetes/admin.conf -> $p"
-          exit 0
-        fi
-      done
-      echo "Could not find kubeconfig in any systemd unit."; exit 1
+      mkdir -p /etc/kubernetes
+      cat > /etc/kubernetes/cluster-admin.kubeconfig <<EOF
+apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    certificate-authority: ${caCert}
+    server: https://127.0.0.1:6443
+  name: ducksnest-k8s
+contexts:
+- context:
+    cluster: ducksnest-k8s
+    user: kubernetes-admin
+  name: default
+current-context: default
+users:
+- name: kubernetes-admin
+  user:
+    client-certificate: ${certs.kube-admin.path}
+    client-key: ${certs.kube-admin.keyPath}
+EOF
+      chmod 600 /etc/kubernetes/cluster-admin.kubeconfig
+      echo "Admin kubeconfig generated at /etc/kubernetes/cluster-admin.kubeconfig"
     '';
   };
 
