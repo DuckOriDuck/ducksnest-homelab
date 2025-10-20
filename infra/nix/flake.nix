@@ -43,7 +43,7 @@
           inherit system;
 
           specialArgs = {
-            inherit agenix k8nix-cert-management;
+            inherit agenix k8nix-cert-management self;
             k8sRole = role;
           };
 
@@ -72,10 +72,12 @@
       };
 
       # Certificate management apps
-      apps.x86_64-linux.certs.recreate = k8nix-cert-management.mkRecreateCertsApp {
-        system = "x86_64-linux";
-        nixosConfigurations = self.nixosConfigurations;
-        caModules = [ ./modules/certs/ca.nix ];
+      apps.x86_64-linux = {
+        "certs-recreate" = k8nix-cert-management.mkRecreateCertsApp {
+          system = "x86_64-linux";
+          nixosConfigurations = self.nixosConfigurations;
+          caModules = [ ./modules/certs/ca.nix ];
+        };
       };
 
       # Default packages for each system
