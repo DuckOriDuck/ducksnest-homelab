@@ -8,6 +8,15 @@ in
 {
   virtualisation.containerd.enable = true;
 
+  services.etcd = {
+    enable = true;
+    listenClientUrls = ["https://127.0.0.1:2379"];
+    advertiseClientUrls = ["https://127.0.0.1:2379"];
+    certFile = certs.etcd-server.path;
+    keyFile = certs.etcd-server.keyPath;
+    trustedCaFile = caCert;
+  };
+
   environment.systemPackages = with pkgs; [
     kubernetes
     kubernetes-helm
@@ -37,11 +46,17 @@ in
   services.kubernetes = {
     masterAddress = "127.0.0.1";
     clusterCidr = "10.244.0.0/16";
-    
+
     apiserver = {
       enable = true;
       bindAddress = "0.0.0.0";
-      extraSANs = ["ducksnest-controlplane"];
+      extraSANs = [
+        config.networking.hostName
+        "kubernetes"
+        "kubernetes.default"
+        "kubernetes.default.svc"
+        "kubernetes.default.svc.cluster.local"
+      ];
       clientCaFile = caCert;
       tlsCertFile = certs.kube-apiserver.path;
       tlsKeyFile = certs.kube-apiserver.keyPath;
@@ -67,6 +82,12 @@ in
 
     scheduler = {
       enable = true;
+      kubeconfig = {
+        server = "https://127.0.0.1:6443";
+        caFile = caCert;
+        certFile = certs.kube-scheduler.path;
+        keyFile = certs.kube-scheduler.keyPath;
+      };
     };
     
     kubelet = {
@@ -84,6 +105,12 @@ in
       clientCaFile = caCert;
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
+      kubeconfig = {
+        server = "https://127.0.0.1:6443";
+        caFile = caCert;
+        certFile = certs.kubelet.path;
+        keyFile = certs.kubelet.keyPath;
+      };
       cni = {
         packages = with pkgs; [ calico-cni-plugin cni-plugins ];
         config = [{
