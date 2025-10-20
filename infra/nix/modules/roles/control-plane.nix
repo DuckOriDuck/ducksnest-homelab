@@ -50,6 +50,7 @@ in
     apiserver = {
       enable = true;
       bindAddress = "0.0.0.0";
+      allowPrivileged = true;
       extraSANs = [
         config.networking.hostName
         "kubernetes"
