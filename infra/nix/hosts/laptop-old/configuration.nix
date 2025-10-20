@@ -1,5 +1,5 @@
 # NixOS configuration for laptop-old
-{ config, pkgs, k8sRole, ... }:
+{ config, pkgs, lib, k8sRole, ... }:
 
 {
   imports = [
@@ -28,8 +28,8 @@
     "intel_pstate=active"
   ];
 
-  # Disable swap for Kubernetes
-  swapDevices = [ ];
+  # Disable swap for Kubernetes (override hardware-configuration.nix)
+  swapDevices = lib.mkForce [ ];
 
   # Services specific to worker node
   services = {
