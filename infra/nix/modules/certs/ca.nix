@@ -55,6 +55,9 @@
         owner = "root";
         usages = [ "server auth" "client auth" ];
         expiry = "8760h";
+        names = {
+          O = "system:nodes";
+        };
       };
     }
 
