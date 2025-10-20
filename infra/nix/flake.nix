@@ -73,10 +73,16 @@
 
       # Certificate management apps
       apps.x86_64-linux = {
-        "certs-recreate" = k8nix-cert-management.mkRecreateCertsApp {
-          system = "x86_64-linux";
-          nixosConfigurations = self.nixosConfigurations;
-          caModules = [ ./modules/certs/ca.nix ];
+        "certs-recreate" = {
+          type = "app";
+          program = "${(k8nix-cert-management.mkRecreateCertsApp {
+            system = "x86_64-linux";
+            nixosConfigurations = self.nixosConfigurations;
+            caModules = [ ./modules/certs/ca.nix ];
+          }).program}";
+          meta = {
+            description = "Regenerate TLS certificates for Kubernetes cluster";
+          };
         };
       };
 
