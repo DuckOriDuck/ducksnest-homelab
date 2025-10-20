@@ -132,6 +132,9 @@
         owner = "kubernetes";
         usages = [ "client auth" ];
         expiry = "8760h";
+        names = {
+          O = "system:masters";
+        };
       };
 
       service-account = {
