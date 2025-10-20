@@ -136,7 +136,7 @@
 
       service-account = {
         commonName = "service-accounts";
-        owner = "root";
+        owner = "kubernetes";
         usages = [ "signing" ];
         expiry = "8760h";
       };
