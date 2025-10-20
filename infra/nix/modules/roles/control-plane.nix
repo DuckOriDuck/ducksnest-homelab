@@ -99,7 +99,7 @@ in
       taints = {
         control-plane = {
           key = "node-role.kubernetes.io/";
-          value = "";
+          value = "true";
           effect = "NoSchedule";
         };
       };
