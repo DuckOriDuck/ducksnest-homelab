@@ -97,9 +97,8 @@ in
       unschedulable = true;
       containerRuntimeEndpoint = "unix:///var/run/containerd/containerd.sock";
       taints = {
-        master = {
+        control-plane = {
           key = "node-role.kubernetes.io/control-plane";
-          value = "true";
           effect = "NoSchedule";
         };
       };
