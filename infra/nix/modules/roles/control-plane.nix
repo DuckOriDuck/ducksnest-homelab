@@ -94,7 +94,6 @@ in
     kubelet = {
       enable = true;
       registerNode = true;
-      unschedulable = true;
       containerRuntimeEndpoint = "unix:///var/run/containerd/containerd.sock";
       taints = {
         master = {
