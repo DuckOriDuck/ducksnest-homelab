@@ -79,6 +79,12 @@ in
       serviceAccountKeyFile = certs.service-account.keyPath;
       tlsCertFile = certs.kube-controller-manager.path;
       tlsKeyFile = certs.kube-controller-manager.keyPath;
+      kubeconfig = {
+        server = "https://127.0.0.1:6443";
+        caFile = caCert;
+        certFile = certs.kube-controller-manager.path;
+        keyFile = certs.kube-controller-manager.keyPath;
+      };
     };
 
     scheduler = {
