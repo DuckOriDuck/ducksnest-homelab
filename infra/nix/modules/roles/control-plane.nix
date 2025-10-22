@@ -89,9 +89,6 @@ in
 
     scheduler = {
       enable = true;
-      rootCaFile = caCert;
-      tlsCertFile = certs.kube-scheduler.path;
-      tlsKeyFile = certs.kube-scheduler.keyPath;
       kubeconfig = {
         server = "https://127.0.0.1:6443";
         caFile = caCert;
