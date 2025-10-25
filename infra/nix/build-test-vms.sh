@@ -119,37 +119,38 @@ if [ "$BUILD_WN" = true ]; then
     echo -e "    ./result-wn/bin/run-ducksnest-test-worker-node-vm"
 fi
 
-# Optional: Run VMs in tmux
+# Optional: Run VMs in tmux (headless in tmux panes)
 if [ "$RUN_AFTER" = true ]; then
-    if ! command -v tmux &> /dev/null; then
-        warning "tmux is not installed. Run VMs manually or install tmux."
-        exit 0
-    fi
+  if ! command -v tmux &>/dev/null; then
+    warning "tmux is not installed. Run VMs manually or install tmux."
+    exit 0
+  fi
 
-    section "Starting VMs..."
+  section "Starting VMs inside tmux (headless)..."
 
-    # Kill existing session if it exists
-    if tmux list-sessions -F "#{session_name}" 2>/dev/null | grep -q "^ducksnest-test$"; then
-        tmux kill-session -t ducksnest-test 2>/dev/null
-        sleep 0.5
-    fi
+  # 새로 시작하기 전 기존 세션 정리
+  tmux has-session -t ducksnest-test 2>/dev/null && tmux kill-session -t ducksnest-test || true
 
-    # Start tmux session with both VMs
-    tmux new-session -d -s ducksnest-test
+  # QEMU를 tmux 창 안에 붙이기 위한 옵션
+  VM_EXTRA_ARGS="-nographic -serial mon:stdio"
 
-    if [ "$BUILD_CP" = true ]; then
-        tmux send-keys -t ducksnest-test "cd $SCRIPT_DIR && ./result-cp/bin/run-ducksnest-test-controlplane-vm" Enter
-        success "Control Plane VM started"
-    fi
+  # Control Plane 창 생성 + 실행 (작업 디렉토리 고정 + bash -lc)
+  tmux new-session -d -s ducksnest-test -n control -c "$SCRIPT_DIR" \
+    "bash -lc './result-cp/bin/run-ducksnest-test-controlplane-vm ${VM_EXTRA_ARGS} 2>&1 | tee cp.log; echo; read -n1 -p \"[CP ENDED] Press any key...\"'"
 
-    if [ "$BUILD_WN" = true ]; then
-        tmux new-window -t ducksnest-test
-        tmux send-keys -t ducksnest-test "cd $SCRIPT_DIR && ./result-wn/bin/run-ducksnest-test-worker-node-vm" Enter
-        success "Worker Node VM started"
-    fi
+  success "Control Plane VM launched in tmux window 'control'."
 
-    # Attach to session
+  # Worker 창 생성 + 실행(선택)
+  if [ "$BUILD_WN" = true ]; then
+    tmux new-window -t ducksnest-test -n worker -c "$SCRIPT_DIR" \
+      "bash -lc './result-wn/bin/run-ducksnest-test-worker-node-vm ${VM_EXTRA_ARGS} 2>&1 | tee wn.log; echo; read -n1 -p \"[WN ENDED] Press any key...\"'"
+    success "Worker Node VM launched in tmux window 'worker'."
+  fi
+
+  # 이미 tmux 안이면 attach 대신 switch (중첩 경고 방지)
+  if [ -n "${TMUX-}" ]; then
+    tmux switch-client -t ducksnest-test
+  else
     tmux attach -t ducksnest-test
+  fi
 fi
-
-echo ""

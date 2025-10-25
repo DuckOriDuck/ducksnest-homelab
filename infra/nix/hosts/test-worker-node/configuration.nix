@@ -30,13 +30,15 @@
   security.sudo.wheelNeedsPassword = lib.mkForce false;
 
   # Test VM: Provide SSH private key for agenix decryption
-  age.identityPaths = lib.mkForce [ "/root/.ssh/ducksnest_cert_mng_key_test_wn" ];
+  # Use /etc/ssh path since environment.etc runs before agenix
+  age.identityPaths = lib.mkForce [ "/etc/ssh/ducksnest_cert_mng_key_test_wn" ];
 
-  # Test VM: Copy private key to standard location
+  # Test VM: Place SSH private key in /etc (available during agenix phase)
   environment.etc."ssh/ducksnest_cert_mng_key_test_wn" = {
     source = ../../ssh-host-keys/ducksnest-test-worker-node/ducksnest_cert_mng_key_test_wn;
     mode = "0600";
     user = "root";
+    group = "root";
   };
 
   system.stateVersion = "25.05";
