@@ -44,7 +44,7 @@ in
   ];
 
   services.kubernetes = {
-    masterAddress = "127.0.0.1";
+    masterAddress = config.networking.hostName;
     clusterCidr = "10.244.0.0/16";
 
     apiserver = {
@@ -80,7 +80,7 @@ in
       tlsCertFile = certs.kube-controller-manager.path;
       tlsKeyFile = certs.kube-controller-manager.keyPath;
       kubeconfig = {
-        server = "https://127.0.0.1:6443";
+        server = "https://${config.networking.hostName}:6443";
         caFile = caCert;
         certFile = certs.kube-controller-manager.path;
         keyFile = certs.kube-controller-manager.keyPath;
@@ -90,7 +90,7 @@ in
     scheduler = {
       enable = true;
       kubeconfig = {
-        server = "https://127.0.0.1:6443";
+        server = "https://${config.networking.hostName}:6443";
         caFile = caCert;
         certFile = certs.kube-scheduler.path;
         keyFile = certs.kube-scheduler.keyPath;
@@ -112,7 +112,7 @@ in
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
       kubeconfig = {
-        server = "https://127.0.0.1:6443";
+        server = "https://${config.networking.hostName}:6443";
         caFile = caCert;
         certFile = certs.kubelet.path;
         keyFile = certs.kubelet.keyPath;
@@ -161,7 +161,7 @@ kind: Config
 clusters:
 - cluster:
     certificate-authority: ${caCert}
-    server: https://127.0.0.1:6443
+    server: https://${config.networking.hostName}:6443
   name: ducksnest-k8s
 contexts:
 - context:
@@ -193,7 +193,7 @@ EOF
       # Wait for API server to be ready
       echo "Waiting for API server to be ready..."
       for i in {1..30}; do
-        if ${pkgs.curl}/bin/curl -s --cacert ${caCert} https://127.0.0.1:6443/healthz > /dev/null 2>&1; then
+        if ${pkgs.curl}/bin/curl -s --cacert ${caCert} https://${config.networking.hostName}:6443/healthz > /dev/null 2>&1; then
           echo "API server is ready"
           break
         fi

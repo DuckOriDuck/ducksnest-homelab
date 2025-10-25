@@ -11,9 +11,21 @@
 
   networking.hostName = "ducksnest-test-worker-node";
   networking.hostId = "87654321";
-  networking.interfaces.eth0.useDHCP = true;
 
-  # Override master address for test environment
+  # Static IP for bridged networking between VMs
+  networking.interfaces.eth0 = {
+    ipv4.addresses = [{
+      address = "10.100.0.3";
+      prefixLength = 24;
+    }];
+  };
+  networking.defaultGateway = "10.100.0.1";
+  networking.nameservers = [ "8.8.8.8" "8.8.4.4" ];
+
+  # Add host entry for control plane so DNS resolution works
+  networking.extraHosts = "10.100.0.2 ducksnest-test-controlplane";
+
+  # Override master address for test environment to use hostname
   services.kubernetes.masterAddress = "ducksnest-test-controlplane";
   services.kubernetes.kubelet.kubeconfig.server = lib.mkForce "https://ducksnest-test-controlplane:6443";
 

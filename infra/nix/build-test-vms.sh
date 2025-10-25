@@ -44,6 +44,7 @@ fi
 BUILD_CP=true
 BUILD_WN=true
 RUN_AFTER=false
+USE_TAP=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -59,6 +60,11 @@ while [[ $# -gt 0 ]]; do
             RUN_AFTER=true
             shift
             ;;
+        --tap)
+            USE_TAP=true
+            RUN_AFTER=true
+            shift
+            ;;
         --help)
             echo "Usage: $0 [OPTIONS]"
             echo ""
@@ -66,6 +72,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --cp-only     Build only control-plane VM"
             echo "  --wn-only     Build only worker-node VM"
             echo "  --run         Run VMs after building (requires tmux)"
+            echo "  --tap         Setup tap bridge and run VMs with networking (requires sudo)"
             echo "  --help        Show this help message"
             exit 0
             ;;
@@ -108,15 +115,53 @@ echo -e "\n${GREEN}━━━━━━━━━━━━━━━━━━━━�
 echo -e "${GREEN}✓ All VMs built successfully!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 
+# Create wrapper scripts for VMs that replace user-mode networking with TAP
+if [ "$BUILD_CP" = true ]; then
+    cat > "$SCRIPT_DIR/run-cp-vm-wrapper.sh" << 'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+VM_SCRIPT="$(dirname "$0")/result-cp/bin/run-ducksnest-test-controlplane-vm"
+TAP_DEVICE="${TAP_DEVICE:-tap0}"
+MAC_ADDRESS="${MAC_ADDRESS:-52:54:00:12:34:01}"
+
+# Replace user-mode networking with TAP networking in the VM script
+# Pattern: -net nic,netdev=user.0,model=virtio -netdev user,id=user.0,"$QEMU_NET_OPTS"
+# Replace: -net nic,netdev=tap0,model=virtio,mac=X -netdev tap,id=tap0,ifname=Y,script=no,downscript=no
+
+sed 's| -net nic,netdev=user\.0,model=virtio -netdev user,id=user\.0,"[^"]*"| -net nic,netdev=tap0,model=virtio,macaddr='"${MAC_ADDRESS}"' -netdev tap,id=tap0,ifname='"${TAP_DEVICE}"',script=no,downscript=no|g' "$VM_SCRIPT" | bash
+EOF
+    chmod +x "$SCRIPT_DIR/run-cp-vm-wrapper.sh"
+fi
+
+if [ "$BUILD_WN" = true ]; then
+    cat > "$SCRIPT_DIR/run-wn-vm-wrapper.sh" << 'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+VM_SCRIPT="$(dirname "$0")/result-wn/bin/run-ducksnest-test-worker-node-vm"
+TAP_DEVICE="${TAP_DEVICE:-tap1}"
+MAC_ADDRESS="${MAC_ADDRESS:-52:54:00:12:34:02}"
+
+# Replace user-mode networking with TAP networking in the VM script
+sed 's| -net nic,netdev=user\.0,model=virtio -netdev user,id=user\.0,"[^"]*"| -net nic,netdev=tap1,model=virtio,macaddr='"${MAC_ADDRESS}"' -netdev tap,id=tap1,ifname='"${TAP_DEVICE}"',script=no,downscript=no|g' "$VM_SCRIPT" | bash
+EOF
+    chmod +x "$SCRIPT_DIR/run-wn-vm-wrapper.sh"
+fi
+
 # Show how to run
 echo -e "${BLUE}To run the VMs:${NC}"
 if [ "$BUILD_CP" = true ]; then
     echo -e "  ${YELLOW}Control Plane:${NC}"
     echo -e "    ./result-cp/bin/run-ducksnest-test-controlplane-vm"
+    echo -e "    Or with custom QEMU options:"
+    echo -e "    QEMU_OPTS=\"-nographic\" ./run-cp-vm-wrapper.sh"
 fi
 if [ "$BUILD_WN" = true ]; then
     echo -e "  ${YELLOW}Worker Node:${NC}"
     echo -e "    ./result-wn/bin/run-ducksnest-test-worker-node-vm"
+    echo -e "    Or with custom QEMU options:"
+    echo -e "    QEMU_OPTS=\"-nographic\" ./run-wn-vm-wrapper.sh"
 fi
 
 # Optional: Run VMs in tmux (headless in tmux panes)
@@ -131,19 +176,52 @@ if [ "$RUN_AFTER" = true ]; then
   # 새로 시작하기 전 기존 세션 정리
   tmux has-session -t ducksnest-test 2>/dev/null && tmux kill-session -t ducksnest-test || true
 
-  # QEMU를 tmux 창 안에 붙이기 위한 옵션
-  VM_EXTRA_ARGS="-nographic -serial mon:stdio"
+  # Setup tap bridge if requested
+  if [ "$USE_TAP" = true ]; then
+    section "Setting up tap bridge for inter-VM networking..."
+
+    # Create bridge if it doesn't exist
+    if ! sudo ip link show ducksnest-br0 >/dev/null 2>&1; then
+      sudo ip link add ducksnest-br0 type bridge || error "Failed to create bridge"
+      sudo ip addr add 10.100.0.1/24 dev ducksnest-br0 || error "Failed to set bridge IP"
+      sudo ip link set ducksnest-br0 up || error "Failed to bring up bridge"
+      success "Bridge created: ducksnest-br0 (10.100.0.1/24)"
+    else
+      success "Bridge ducksnest-br0 already exists"
+    fi
+
+    # Create tap devices if they don't exist
+    for i in 0 1; do
+      if ! sudo ip link show tap$i >/dev/null 2>&1; then
+        sudo ip tuntap add tap$i mode tap user $(whoami) || error "Failed to create tap$i"
+        sudo ip link set tap$i master ducksnest-br0 || error "Failed to add tap$i to bridge"
+        sudo ip link set tap$i up || error "Failed to bring up tap$i"
+      fi
+    done
+    success "Tap devices created: tap0, tap1"
+
+    # Prepare tap networking arguments with unique MACs for each VM
+    VM_QEMU_OPTS="-nographic -serial mon:stdio -netdev tap,id=net0,ifname=tap0,script=no,downscript=no -device virtio-net,netdev=net0,mac=52:54:00:12:34:01"
+    VM_WN_QEMU_OPTS="-nographic -serial mon:stdio -netdev tap,id=net0,ifname=tap1,script=no,downscript=no -device virtio-net,netdev=net0,mac=52:54:00:12:34:02"
+  else
+    warning "Using user-mode networking (VMs cannot communicate with each other)"
+    warning "For inter-VM networking, use: $0 --tap"
+
+    # QEMU options for tmux integration
+    VM_QEMU_OPTS="-nographic -serial mon:stdio"
+    VM_WN_QEMU_OPTS="-nographic -serial mon:stdio"
+  fi
 
   # Control Plane 창 생성 + 실행 (작업 디렉토리 고정 + bash -lc)
   tmux new-session -d -s ducksnest-test -n control -c "$SCRIPT_DIR" \
-    "bash -lc './result-cp/bin/run-ducksnest-test-controlplane-vm ${VM_EXTRA_ARGS} 2>&1 | tee cp.log; echo; read -n1 -p \"[CP ENDED] Press any key...\"'"
+    "bash -lc './run-cp-vm-wrapper.sh 2>&1 | tee cp.log; echo; read -n1 -p \"[CP ENDED] Press any key...\"'"
 
   success "Control Plane VM launched in tmux window 'control'."
 
   # Worker 창 생성 + 실행(선택)
   if [ "$BUILD_WN" = true ]; then
     tmux new-window -t ducksnest-test -n worker -c "$SCRIPT_DIR" \
-      "bash -lc './result-wn/bin/run-ducksnest-test-worker-node-vm ${VM_EXTRA_ARGS} 2>&1 | tee wn.log; echo; read -n1 -p \"[WN ENDED] Press any key...\"'"
+      "bash -lc './run-wn-vm-wrapper.sh 2>&1 | tee wn.log; echo; read -n1 -p \"[WN ENDED] Press any key...\"'"
     success "Worker Node VM launched in tmux window 'worker'."
   fi
 
