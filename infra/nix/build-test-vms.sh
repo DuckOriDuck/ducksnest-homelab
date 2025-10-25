@@ -126,26 +126,30 @@ if [ "$RUN_AFTER" = true ]; then
         exit 0
     fi
 
-    section "Starting VMs in tmux..."
+    section "Starting VMs..."
 
-    # Create tmux session
-    tmux new-session -d -s ducksnest-test -x 200 -y 50
+    # Kill existing session if it exists
+    if tmux list-sessions -F "#{session_name}" 2>/dev/null | grep -q "^ducksnest-test$"; then
+        tmux kill-session -t ducksnest-test 2>/dev/null
+        sleep 0.5
+    fi
+
+    # Start tmux session with both VMs
+    tmux new-session -d -s ducksnest-test
 
     if [ "$BUILD_CP" = true ]; then
-        tmux new-window -t ducksnest-test -n cp
-        tmux send-keys -t ducksnest-test:cp "cd $SCRIPT_DIR && ./result-cp/bin/run-ducksnest-test-controlplane-vm" Enter
-        success "Control-plane VM started in tmux window 'cp'"
+        tmux send-keys -t ducksnest-test "cd $SCRIPT_DIR && ./result-cp/bin/run-ducksnest-test-controlplane-vm" Enter
+        success "Control Plane VM started"
     fi
 
     if [ "$BUILD_WN" = true ]; then
-        tmux new-window -t ducksnest-test -n wn
-        tmux send-keys -t ducksnest-test:wn "cd $SCRIPT_DIR && ./result-wn/bin/run-ducksnest-test-worker-node-vm" Enter
-        success "Worker-node VM started in tmux window 'wn'"
+        tmux new-window -t ducksnest-test
+        tmux send-keys -t ducksnest-test "cd $SCRIPT_DIR && ./result-wn/bin/run-ducksnest-test-worker-node-vm" Enter
+        success "Worker Node VM started"
     fi
 
-    echo -e "\n${BLUE}Tmux session: ducksnest-test${NC}"
-    echo -e "  Attach with: ${YELLOW}tmux attach -t ducksnest-test${NC}"
-    echo -e "  Switch windows: ${YELLOW}Ctrl-B + 0/1/2${NC}"
+    # Attach to session
+    tmux attach -t ducksnest-test
 fi
 
 echo ""
