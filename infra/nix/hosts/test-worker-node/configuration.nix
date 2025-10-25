@@ -9,7 +9,7 @@
     ../../modules/roles/worker-node.nix
   ];
 
-  networking.hostName = "test-worker-node";
+  networking.hostName = "ducksnest-test-worker-node";
   networking.hostId = "87654321";
   networking.interfaces.eth0.useDHCP = true;
 

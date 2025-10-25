@@ -9,7 +9,7 @@
     ../../modules/roles/control-plane.nix
   ];
 
-  networking.hostName = "test-controlplane";
+  networking.hostName = "ducksnest-test-controlplane";
   networking.hostId = "12345678";
   networking.interfaces.eth0.useDHCP = true;
 
