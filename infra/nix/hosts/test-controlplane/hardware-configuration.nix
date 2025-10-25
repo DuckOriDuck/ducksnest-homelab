@@ -18,7 +18,5 @@
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
 
-  # Minimal VM settings
-  virtualisation.hyperthreading = true;
   time.timeZone = "Asia/Seoul";
 }
