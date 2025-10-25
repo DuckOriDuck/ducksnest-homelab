@@ -18,6 +18,8 @@
         "ducksnest-laptop-ultra" = "ducksnest_cert_mng_key_ultra.pub";
         "ducksnest-laptop-firebat" = "ducksnest_cert_mng_key_firebat.pub";
         "ducksnest-controlplane" = "ducksnest_cert_mng_key_ec2.pub";
+        "ducksnest-test-controlplane" = "ducksnest_cert_mng_key_test_cp.pub";
+        "ducksnest-test-worker-node" = "ducksnest_cert_mng_key_test_wn.pub";
       }.${config.networking.hostName} or "ssh_host_ed25519_key.pub";
     in
       "./ssh-host-keys/${config.networking.hostName}/${keyFileName}";

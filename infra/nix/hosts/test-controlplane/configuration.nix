@@ -13,5 +13,27 @@
   networking.hostId = "12345678";
   networking.interfaces.eth0.useDHCP = true;
 
+  # Test VM: Set password for oriduckduck user
+  users.users.oriduckduck = lib.mkForce {
+    isNormalUser = true;
+    description = "oriduckduck";
+    extraGroups = [ "networkmanager" "wheel" ];
+    initialPassword = "test";  # Simple password for testing
+    packages = with pkgs; [];
+  };
+
+  # Allow sudo without password for testing (override common settings)
+  security.sudo.wheelNeedsPassword = lib.mkForce false;
+
+  # Test VM: Provide SSH private key for agenix decryption
+  age.identityPaths = lib.mkForce [ "/root/.ssh/ducksnest_cert_mng_key_test_cp" ];
+
+  # Test VM: Copy private key to standard location
+  environment.etc."ssh/ducksnest_cert_mng_key_test_cp" = {
+    source = ../../ssh-host-keys/ducksnest-test-controlplane/ducksnest_cert_mng_key_test_cp;
+    mode = "0600";
+    user = "root";
+  };
+
   system.stateVersion = "25.05";
 }

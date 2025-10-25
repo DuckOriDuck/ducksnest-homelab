@@ -90,6 +90,21 @@
             description = "Regenerate TLS certificates for Kubernetes cluster";
           };
         };
+
+        "certs-recreate-test" = {
+          type = "app";
+          program = "${(k8nix-cert-management.mkRecreateCertsApp {
+            system = "x86_64-linux";
+            nixosConfigurations = {
+              test-controlplane = self.nixosConfigurations.test-controlplane;
+              test-worker-node = self.nixosConfigurations.test-worker-node;
+            };
+            caModules = [ ./modules/certs/ca.nix ];
+          }).program}";
+          meta = {
+            description = "Regenerate TLS certificates for test environment only";
+          };
+        };
       };
 
       # Default packages for each system
