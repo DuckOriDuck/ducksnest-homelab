@@ -180,5 +180,47 @@ EOF
     '';
   };
 
+  systemd.services.bootstrap-rbac = {
+    description = "Bootstrap Kubernetes RBAC rules";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "generate-admin-kubeconfig.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      Environment = "KUBECONFIG=/etc/kubernetes/cluster-admin.kubeconfig";
+    };
+    script = ''
+      # Wait for API server to be ready
+      echo "Waiting for API server to be ready..."
+      for i in {1..30}; do
+        if ${pkgs.curl}/bin/curl -s --cacert ${caCert} https://127.0.0.1:6443/healthz > /dev/null 2>&1; then
+          echo "API server is ready"
+          break
+        fi
+        echo "Attempt $i/30: API server not ready yet, waiting..."
+        sleep 2
+      done
+
+      # Apply bootstrap RBAC manifests
+      mkdir -p /etc/kubernetes/rbac
+
+      # Copy RBAC manifests to standard location
+      cp -r ${./../../k8s/rbac}/* /etc/kubernetes/rbac/ 2>/dev/null || true
+
+      if [ -d "/etc/kubernetes/rbac" ] && [ -n "$(ls -A /etc/kubernetes/rbac/*.yaml 2>/dev/null)" ]; then
+        echo "Applying RBAC manifests from /etc/kubernetes/rbac"
+        for f in /etc/kubernetes/rbac/*.yaml; do
+          if [ -f "$f" ]; then
+            echo "Applying $f"
+            ${pkgs.kubernetes}/bin/kubectl apply -f "$f" || echo "Warning: Failed to apply $f"
+          fi
+        done
+        echo "Bootstrap RBAC rules applied"
+      else
+        echo "Warning: No RBAC manifests found"
+      fi
+    '';
+  };
+
   environment.variables.KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
 }
