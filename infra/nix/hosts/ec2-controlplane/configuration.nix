@@ -1,13 +1,15 @@
-{ config, pkgs, ... }:
+{ config, pkgs, k8sRole, ... }:
 
 {
   imports = [
-    ../../modules/boot/ec2-modules.nix 
+    ../../modules/boot/ec2-modules.nix
     ../../modules/common/base.nix
     ../../modules/common/security.nix
     ../../modules/common/users.nix
-    ../../modules/roles/control-plane.nix
     ../../modules/roles/tailscale-client.nix
+    (if k8sRole == "control-plane"
+     then ../../modules/roles/control-plane.nix
+     else ../../modules/roles/worker-node.nix)
   ];
 
   # Hostname

@@ -1,10 +1,13 @@
 { config, pkgs, lib, ... }:
 
+let
+  # Certificate paths from certToolkit
+  caCert = config.certToolkit.cas.k8s.ca.path;
+  certs = config.certToolkit.cas.k8s.certs;
+in
 {
-  virtualisation.cri-o.enable = true;
+  virtualisation.containerd.enable = true;
   
-  environment.etc."cni/net.d/10-crio-bridge.conflist".enable = lib.mkForce false;
-  environment.etc."cni/net.d/99-loopback.conflist".enable = lib.mkForce false;
 
   environment.systemPackages = with pkgs; [
     kubernetes
@@ -28,15 +31,23 @@
   ];
 
   services.kubernetes = {
-    roles = ["node"];
-    masterAddress = "ducksnest-cp";
+    masterAddress = "ducksnest-laptop-firebat";
     clusterCidr = "10.244.0.0/16";
-    easyCerts = false;
 
     kubelet = {
       enable = true;
       registerNode = true;
-      containerRuntimeEndpoint = "unix:///var/run/crio/crio.sock";
+      unschedulable = false;
+      containerRuntimeEndpoint = "unix:///var/run/containerd/containerd.sock";
+      clientCaFile = caCert;
+      tlsCertFile = certs.kubelet.path;
+      tlsKeyFile = certs.kubelet.keyPath;
+      kubeconfig = {
+        server = "https://ducksnest-laptop-firebat:6443";
+        caFile = caCert;
+        certFile = certs.kubelet.path;
+        keyFile = certs.kubelet.keyPath;
+      };
       cni = {
         packages = with pkgs; [ calico-cni-plugin cni-plugins ];
         config = [{
@@ -67,6 +78,6 @@
   boot.kernelModules = [ "overlay" "br_netfilter" ];
 
   systemd.services = {
-    kubelet.after = [ "tailscaled.service" "crio.service" ];
+    kubelet.after = [ "tailscaled.service" "containerd.service" ];
   };
 }

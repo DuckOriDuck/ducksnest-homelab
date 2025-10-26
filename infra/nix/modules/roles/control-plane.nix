@@ -1,10 +1,21 @@
 { config, pkgs, lib, ... }:
 
+let
+  # Certificate paths from certToolkit
+  caCert = config.certToolkit.cas.k8s.ca.path;
+  certs = config.certToolkit.cas.k8s.certs;
+in
 {
-  virtualisation.cri-o.enable = true;
-  
-  environment.etc."cni/net.d/10-crio-bridge.conflist".enable = lib.mkForce false;
-  environment.etc."cni/net.d/99-loopback.conflist".enable = lib.mkForce false;
+  virtualisation.containerd.enable = true;
+
+  services.etcd = {
+    enable = true;
+    listenClientUrls = ["https://127.0.0.1:2379"];
+    advertiseClientUrls = ["https://127.0.0.1:2379"];
+    certFile = certs.etcd-server.path;
+    keyFile = certs.etcd-server.keyPath;
+    trustedCaFile = caCert;
+  };
 
   environment.systemPackages = with pkgs; [
     kubernetes
@@ -26,29 +37,86 @@
     wget
     unzip
     htop
+    btop
     tree
     vim
     fastfetchMinimal
   ];
 
   services.kubernetes = {
-    roles = ["master"];
-    masterAddress = "127.0.0.1";
+    masterAddress = config.networking.hostName;
     clusterCidr = "10.244.0.0/16";
-    
+
     apiserver = {
       enable = true;
       bindAddress = "0.0.0.0";
+      allowPrivileged = true;
+      extraSANs = [
+        config.networking.hostName
+        "kubernetes"
+        "kubernetes.default"
+        "kubernetes.default.svc"
+        "kubernetes.default.svc.cluster.local"
+      ];
+      clientCaFile = caCert;
+      tlsCertFile = certs.kube-apiserver.path;
+      tlsKeyFile = certs.kube-apiserver.keyPath;
+      kubeletClientCertFile = certs.kube-apiserver-kubelet-client.path;
+      kubeletClientKeyFile = certs.kube-apiserver-kubelet-client.keyPath;
+      serviceAccountKeyFile = certs.service-account.path;
+      serviceAccountSigningKeyFile = certs.service-account.keyPath;
+      etcd = {
+        servers = ["https://127.0.0.1:2379"];
+        caFile = caCert;
+        certFile = certs.kube-apiserver-etcd-client.path;
+        keyFile = certs.kube-apiserver-etcd-client.keyPath;
+      };
     };
     
-    controllerManager.enable = true;
-    scheduler.enable = true;
-    easyCerts = true;
+    controllerManager = {
+      enable = true;
+      rootCaFile = caCert;
+      serviceAccountKeyFile = certs.service-account.keyPath;
+      tlsCertFile = certs.kube-controller-manager.path;
+      tlsKeyFile = certs.kube-controller-manager.keyPath;
+      kubeconfig = {
+        server = "https://${config.networking.hostName}:6443";
+        caFile = caCert;
+        certFile = certs.kube-controller-manager.path;
+        keyFile = certs.kube-controller-manager.keyPath;
+      };
+    };
+
+    scheduler = {
+      enable = true;
+      kubeconfig = {
+        server = "https://${config.networking.hostName}:6443";
+        caFile = caCert;
+        certFile = certs.kube-scheduler.path;
+        keyFile = certs.kube-scheduler.keyPath;
+      };
+    };
     
     kubelet = {
       enable = true;
       registerNode = true;
-      containerRuntimeEndpoint = "unix:///var/run/crio/crio.sock";
+      containerRuntimeEndpoint = "unix:///var/run/containerd/containerd.sock";
+      taints = {
+        master = {
+          key = "node-role.kubernetes.io/control-plane";
+          value = "true";
+          effect = "NoSchedule";
+        };
+      };
+      clientCaFile = caCert;
+      tlsCertFile = certs.kubelet.path;
+      tlsKeyFile = certs.kubelet.keyPath;
+      kubeconfig = {
+        server = "https://${config.networking.hostName}:6443";
+        caFile = caCert;
+        certFile = certs.kubelet.path;
+        keyFile = certs.kubelet.keyPath;
+      };
       cni = {
         packages = with pkgs; [ calico-cni-plugin cni-plugins ];
         config = [{
@@ -61,7 +129,7 @@
         }];
       };
     };
-    
+
     proxy.enable = false;
     addons.dns.enable = true;
     
@@ -77,5 +145,82 @@
   boot.kernelModules = [ "overlay" "br_netfilter" ];
   boot.kernelPackages = pkgs.linuxPackages;
 
-  environment.variables.KUBECONFIG = "/etc/kubernetes/admin.conf";
+  systemd.services.generate-admin-kubeconfig = {
+    description = "Generate admin kubeconfig";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "agenix.service" "kube-apiserver.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      mkdir -p /etc/kubernetes
+      cat > /etc/kubernetes/cluster-admin.kubeconfig <<EOF
+apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    certificate-authority: ${caCert}
+    server: https://${config.networking.hostName}:6443
+  name: ducksnest-k8s
+contexts:
+- context:
+    cluster: ducksnest-k8s
+    user: kubernetes-admin
+  name: default
+current-context: default
+users:
+- name: kubernetes-admin
+  user:
+    client-certificate: ${certs.kube-admin.path}
+    client-key: ${certs.kube-admin.keyPath}
+EOF
+      chmod 600 /etc/kubernetes/cluster-admin.kubeconfig
+      echo "Admin kubeconfig generated at /etc/kubernetes/cluster-admin.kubeconfig"
+    '';
+  };
+
+  systemd.services.bootstrap-rbac = {
+    description = "Bootstrap Kubernetes RBAC rules";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "generate-admin-kubeconfig.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      Environment = "KUBECONFIG=/etc/kubernetes/cluster-admin.kubeconfig";
+    };
+    script = ''
+      # Wait for API server to be ready
+      echo "Waiting for API server to be ready..."
+      for i in {1..30}; do
+        if ${pkgs.curl}/bin/curl -s --cacert ${caCert} https://${config.networking.hostName}:6443/healthz > /dev/null 2>&1; then
+          echo "API server is ready"
+          break
+        fi
+        echo "Attempt $i/30: API server not ready yet, waiting..."
+        sleep 2
+      done
+
+      # Apply bootstrap RBAC manifests
+      mkdir -p /etc/kubernetes/rbac
+
+      # Copy RBAC manifests to standard location
+      cp -r ${./../../k8s/rbac}/* /etc/kubernetes/rbac/ 2>/dev/null || true
+
+      if [ -d "/etc/kubernetes/rbac" ] && [ -n "$(ls -A /etc/kubernetes/rbac/*.yaml 2>/dev/null)" ]; then
+        echo "Applying RBAC manifests from /etc/kubernetes/rbac"
+        for f in /etc/kubernetes/rbac/*.yaml; do
+          if [ -f "$f" ]; then
+            echo "Applying $f"
+            ${pkgs.kubernetes}/bin/kubectl apply -f "$f" || echo "Warning: Failed to apply $f"
+          fi
+        done
+        echo "Bootstrap RBAC rules applied"
+      else
+        echo "Warning: No RBAC manifests found"
+      fi
+    '';
+  };
+
+  environment.variables.KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
 }

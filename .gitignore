@@ -13,6 +13,7 @@
 # OS
 .DS_Store
 Thumbs.db
+*:Zone.Identifier
 
 # Logs
 *.log
@@ -37,3 +38,17 @@ Thumbs.db
 *.bak
 *.backup
 *~
+
+# Nix build outputs
+result
+result-*
+.dirlocals
+
+# QEMU/VM images
+*.qcow2
+*.img
+*.iso
+*.raw
+
+# VM runtime files
+*.pid
