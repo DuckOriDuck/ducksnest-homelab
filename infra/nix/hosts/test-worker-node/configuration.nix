@@ -19,6 +19,9 @@
       prefixLength = 24;
     }];
   };
+  networking.defaultGateway = "10.100.0.1";
+  networking.nameservers = [ "8.8.8.8" "8.8.4.4" ];
+
   networking.firewall.allowedTCPPorts = lib.mkAfter [
     10250  # kubelet API
     30000  # reserve start of NodePort range for tests
@@ -30,8 +33,6 @@
   networking.firewall.allowedUDPPorts = lib.mkAfter [
     8472  # VXLAN overlay traffic
   ];
-  networking.defaultGateway = "10.100.0.1";
-  networking.nameservers = [ "8.8.8.8" "8.8.4.4" ];
 
   # Add host entry for control plane so DNS resolution works
   networking.extraHosts = "10.100.0.2 ducksnest-test-controlplane";

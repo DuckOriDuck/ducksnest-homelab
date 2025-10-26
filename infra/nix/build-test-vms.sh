@@ -60,7 +60,7 @@ while [[ $# -gt 0 ]]; do
             RUN_AFTER=true
             shift
             ;;
-        --tap)
+        --tap|--internet)
             USE_TAP=true
             RUN_AFTER=true
             shift
@@ -73,6 +73,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --wn-only     Build only worker-node VM"
             echo "  --run         Run VMs after building (requires tmux)"
             echo "  --tap         Setup tap bridge and run VMs with networking (requires sudo)"
+            echo "  --internet    Alias for --tap: enables internet access for VMs"
             echo "  --help        Show this help message"
             exit 0
             ;;
@@ -150,7 +151,17 @@ EOF
 fi
 
 # Show how to run
-echo -e "${BLUE}To run the VMs:${NC}"
+echo -e "\n${BLUE}To run the VMs with internet access:${NC}"
+echo -e "  ${YELLOW}Quick start:${NC}"
+echo -e "    $0 --internet"
+echo -e "    This will:"
+echo -e "      • Build the VMs"
+echo -e "      • Setup TAP bridge for networking"
+echo -e "      • Enable NAT for internet access"
+echo -e "      • Launch both VMs in tmux"
+echo -e "      • VMs will be at 10.100.0.2 (CP) and 10.100.0.3 (WN)"
+
+echo -e "\n${BLUE}To run the VMs manually:${NC}"
 if [ "$BUILD_CP" = true ]; then
     echo -e "  ${YELLOW}Control Plane:${NC}"
     echo -e "    ./result-cp/bin/run-ducksnest-test-controlplane-vm"
@@ -200,12 +211,50 @@ if [ "$RUN_AFTER" = true ]; then
     done
     success "Tap devices created: tap0, tap1"
 
+    # Enable IP forwarding and NAT so VMs can reach the outside world
+    DEFAULT_UPLINK="$(ip route show default 2>/dev/null | awk 'NR==1 {print $5}')"
+    if [ -z "$DEFAULT_UPLINK" ]; then
+      warning "Could not determine default uplink interface; skipping NAT setup."
+    else
+      if [ "$(sysctl -n net.ipv4.ip_forward 2>/dev/null || echo 0)" -ne 1 ]; then
+        if sudo sysctl -w net.ipv4.ip_forward=1 >/dev/null; then
+          success "Enabled IPv4 forwarding on host"
+        else
+          warning "Failed to enable net.ipv4.ip_forward"
+        fi
+      fi
+
+      if command -v iptables >/dev/null 2>&1; then
+        IPT_CMD="iptables"
+      elif command -v iptables-nft >/dev/null 2>&1; then
+        IPT_CMD="iptables-nft"
+      else
+        IPT_CMD=""
+      fi
+
+      if [ -n "$IPT_CMD" ]; then
+        if ! sudo "$IPT_CMD" -t nat -C POSTROUTING -s 10.100.0.0/24 -o "$DEFAULT_UPLINK" -j MASQUERADE 2>/dev/null; then
+          sudo "$IPT_CMD" -t nat -A POSTROUTING -s 10.100.0.0/24 -o "$DEFAULT_UPLINK" -j MASQUERADE || warning "Failed to add $IPT_CMD MASQUERADE rule"
+        fi
+        if ! sudo "$IPT_CMD" -C FORWARD -i ducksnest-br0 -o "$DEFAULT_UPLINK" -j ACCEPT 2>/dev/null; then
+          sudo "$IPT_CMD" -A FORWARD -i ducksnest-br0 -o "$DEFAULT_UPLINK" -j ACCEPT || warning "Failed to add $IPT_CMD forward rule (bridge → uplink)"
+        fi
+        if ! sudo "$IPT_CMD" -C FORWARD -i "$DEFAULT_UPLINK" -o ducksnest-br0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null; then
+          sudo "$IPT_CMD" -A FORWARD -i "$DEFAULT_UPLINK" -o ducksnest-br0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT || warning "Failed to add $IPT_CMD forward rule (uplink → bridge)"
+        fi
+        success "NAT + forwarding configured via $IPT_CMD on interface $DEFAULT_UPLINK"
+      else
+        warning "No iptables-compatible command found; VMs may lack outbound internet."
+      fi
+    fi
+
     # Prepare tap networking arguments with unique MACs for each VM
     CP_QEMU_OPTS=""
     WN_QEMU_OPTS=""
   else
-    warning "Using user-mode networking (VMs cannot communicate with each other)"
-    warning "For inter-VM networking, use: $0 --tap"
+    warning "Using user-mode networking"
+    warning "  • VMs can reach the internet but cannot communicate with each other"
+    warning "  • For full networking with VM-to-VM communication, use: $0 --internet"
 
     # QEMU options for tmux integration
     CP_QEMU_OPTS="-display none -nographic -serial stdio -monitor none"

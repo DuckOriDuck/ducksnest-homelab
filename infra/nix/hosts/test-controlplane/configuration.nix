@@ -19,6 +19,9 @@
       prefixLength = 24;
     }];
   };
+  networking.defaultGateway = "10.100.0.1";
+  networking.nameservers = [ "8.8.8.8" "8.8.4.4" ];
+
   networking.firewall.allowedTCPPorts = lib.mkAfter [
     6443  # Kubernetes API server
     2379 2380  # etcd client/peer ports
@@ -27,8 +30,6 @@
   networking.firewall.allowedUDPPorts = lib.mkAfter [
     8472  # VXLAN for Calico/Flannel if enabled
   ];
-  networking.defaultGateway = "10.100.0.1";
-  networking.nameservers = [ "8.8.8.8" "8.8.4.4" ];
 
   # Test VM: Set password for oriduckduck user
   users.users.oriduckduck = lib.mkForce {
