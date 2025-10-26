@@ -46,6 +46,9 @@
   security.apparmor.enable = lib.mkForce false;
   services.fail2ban.enable = lib.mkForce false;
 
+  # SSH: Enable password authentication for testing
+  services.openssh.settings.PasswordAuthentication = lib.mkForce true;
+
   # Test VM: Provide SSH private key for agenix decryption
   # Use /etc/ssh path since environment.etc runs before agenix
   age.identityPaths = lib.mkForce [ "/etc/ssh/ducksnest_cert_mng_key_test_cp" ];
