@@ -201,27 +201,28 @@ if [ "$RUN_AFTER" = true ]; then
     success "Tap devices created: tap0, tap1"
 
     # Prepare tap networking arguments with unique MACs for each VM
-    VM_QEMU_OPTS="-nographic -serial mon:stdio -netdev tap,id=net0,ifname=tap0,script=no,downscript=no -device virtio-net,netdev=net0,mac=52:54:00:12:34:01"
-    VM_WN_QEMU_OPTS="-nographic -serial mon:stdio -netdev tap,id=net0,ifname=tap1,script=no,downscript=no -device virtio-net,netdev=net0,mac=52:54:00:12:34:02"
+    CP_QEMU_OPTS=""
+    WN_QEMU_OPTS=""
   else
     warning "Using user-mode networking (VMs cannot communicate with each other)"
     warning "For inter-VM networking, use: $0 --tap"
 
     # QEMU options for tmux integration
-    VM_QEMU_OPTS="-nographic -serial mon:stdio"
-    VM_WN_QEMU_OPTS="-nographic -serial mon:stdio"
+    CP_QEMU_OPTS="-display none -nographic -serial stdio -monitor none"
+    WN_QEMU_OPTS="-display none -nographic -serial stdio -monitor none"
   fi
 
   # Control Plane 창 생성 + 실행 (작업 디렉토리 고정 + bash -lc)
   tmux new-session -d -s ducksnest-test -n control -c "$SCRIPT_DIR" \
-    "bash -lc './run-cp-vm-wrapper.sh 2>&1 | tee cp.log; echo; read -n1 -p \"[CP ENDED] Press any key...\"'"
+  "bash -lc 'QEMU_OPTS=\"'"${CP_QEMU_OPTS}"'\" ./run-cp-vm-wrapper.sh 2>&1 | tee cp.log; echo; read -n1 -p \"[CP ENDED] Press any key...]\"'"
 
   success "Control Plane VM launched in tmux window 'control'."
+
 
   # Worker 창 생성 + 실행(선택)
   if [ "$BUILD_WN" = true ]; then
     tmux new-window -t ducksnest-test -n worker -c "$SCRIPT_DIR" \
-      "bash -lc './run-wn-vm-wrapper.sh 2>&1 | tee wn.log; echo; read -n1 -p \"[WN ENDED] Press any key...\"'"
+    "bash -lc 'QEMU_OPTS=\"'"${WN_QEMU_OPTS}"'\" ./run-wn-vm-wrapper.sh 2>&1 | tee wn.log; echo; read -n1 -p \"[WN ENDED] Press any key...]\"'"
     success "Worker Node VM launched in tmux window 'worker'."
   fi
 

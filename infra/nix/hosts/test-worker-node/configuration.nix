@@ -19,6 +19,17 @@
       prefixLength = 24;
     }];
   };
+  networking.firewall.allowedTCPPorts = lib.mkAfter [
+    10250  # kubelet API
+    30000  # reserve start of NodePort range for tests
+  ];
+  networking.firewall.allowedTCPPortRanges = lib.mkAfter [{
+    from = 30001;
+    to = 32767;
+  }];
+  networking.firewall.allowedUDPPorts = lib.mkAfter [
+    8472  # VXLAN overlay traffic
+  ];
   networking.defaultGateway = "10.100.0.1";
   networking.nameservers = [ "8.8.8.8" "8.8.4.4" ];
 
@@ -35,11 +46,14 @@
     description = "oriduckduck";
     extraGroups = [ "networkmanager" "wheel" ];
     initialPassword = "test";  # Simple password for testing
+    hashedPassword = "$6$ducksalt$KGltfd/BBYujjtcaiqAuI4kn4rXQZiVQtodHVVyFlSCyAHh/LSoowQnovUGDsuNWjZzTfd6l/fvi/dsAjxPyo/";  # Deterministic hash for 'test'
     packages = with pkgs; [];
   };
 
   # Allow sudo without password for testing (override common settings)
   security.sudo.wheelNeedsPassword = lib.mkForce false;
+  security.apparmor.enable = lib.mkForce false;
+  services.fail2ban.enable = lib.mkForce false;
 
   # Test VM: Provide SSH private key for agenix decryption
   # Use /etc/ssh path since environment.etc runs before agenix
@@ -52,6 +66,14 @@
     user = "root";
     group = "root";
   };
+  # 부팅 시 커널과 로그인 콘솔을 직렬로 보냄
+  boot.kernelParams = [ "console=ttyS0,115200n8" "console=tty0" ];
 
+  # 직렬 getty 활성화 → ttyS0에 로그인 프롬프트 표시
+  systemd.services."serial-getty@ttyS0".enable = true;
+
+  # (선택) 부팅 로그 상세도 높이기
+  boot.consoleLogLevel = 7;
+  
   system.stateVersion = "25.05";
 }
