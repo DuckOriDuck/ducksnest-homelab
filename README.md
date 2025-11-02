@@ -13,7 +13,7 @@ I plan to deploy my personal blog and service portfolios on this cluster.
 
 ## Tech Stacks
 
-### Compute Resources
+### Hardware
 
 #### On Premises
 | Alias | CPU | Memory | Disk | GPU |
@@ -27,23 +27,19 @@ I plan to deploy my personal blog and service portfolios on this cluster.
 |--------|----------------|------|----------|
 | **control-plane (EC2)** | t3.medium | 2 | 4 GiB |
 
-### Technology Stack
+### Software
 
-| Category | Technology | Why This Choice |
+| Category | Technology | Reason For This Choice |
 |----------|------------|-----------------|
-| **OS** | NixOS | Declarative configuration enables reproducible infrastructure and atomic rollbacks |
-| **Container Orchestration** | Kubernetes | Industry-standard orchestration for managing containerized workloads across hybrid cloud |
-| **Networking** | Tailscale + Calico CNI | Tailscale provides secure VPN overlay (WireGuard) without port forwarding; Calico enables efficient pod networking with BGP |
-| **IaC** | NixOS Modules + Terraform | NixOS manages system configs; Terraform provisions AWS resources |
-| **CI/CD** | GitHub Actions | Automated infrastructure validation and binary cache generation |
-| **Security** | Custom CA + Tailscale ACLs | Self-managed certificates for cluster components; centralized network access control |
-| **Test Environment** | NixOS VMs | Local testing before deploying to production infrastructure |
+| **OS** | NixOS | My "ultra" PC only supports systemd-boot, so I had to choose an OS that comes with it by default — Arch Linux, NixOS, or FreeBSD. I chose NixOS because it’s compatible with most modern software dependencies and more stable than Arch Linux.  |
+| **Container Orchestration** | Kubernetes | I chose Kubernetes because it felt like the most balanced option. It lets me manage nodes and containers automatically in one place, and with tools like Helm or Argo, even the internal workflows can stay declarative. |
+| **Networking** | Tailscale + Calico CNI |I chose Tailscale because it’s simple and stable. I liked that I can later build my own VPN server with Headscale, and it’ll still work with the same Tailscale clients. It also connects to the network with just one command in my CI/CD pipeline, and managing network policies from the SaaS dashboard is super intuitive. |
+| **IaC** | NixOS Modules + Terraform | I use NixOS modules to manage Linux package dependencies because, NixOS. And I thought it was a good time to learn Terraform for provisioning cloud resources. AWS-native IaC tools felt too vendor-locked for my taste(I know Terraform is still tied to AWS in this case, but it’s a more open and flexible option overall.)|
+| **CI/CD** | GitHub Actions | It was the most simple and intuitive |
+
 
 **Network Design:**
-
-- Pod Network: `10.244.0.0/16` (Calico CNI)
-- Service Network: `10.96.0.0/12` (Kubernetes services)
-- Node Network: `100.64.0.0/10` (Tailscale overlay)
-- On-premises LAN: `192.168.0.0/24`
+TODO:
 
 ## Current Progress
+TODO:
