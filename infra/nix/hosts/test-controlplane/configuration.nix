@@ -37,7 +37,6 @@
     description = "oriduckduck";
     extraGroups = [ "networkmanager" "wheel" ];
     initialPassword = "test";  # Simple password for testing
-    hashedPassword = "$6$ducksalt$KGltfd/BBYujjtcaiqAuI4kn4rXQZiVQtodHVVyFlSCyAHh/LSoowQnovUGDsuNWjZzTfd6l/fvi/dsAjxPyo/";  # Deterministic hash for 'test'
     packages = with pkgs; [];
   };
 
