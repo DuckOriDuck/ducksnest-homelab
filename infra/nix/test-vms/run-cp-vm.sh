@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VM_SCRIPT="$(dirname "$0")/result-cp/bin/run-ducksnest-test-controlplane-vm"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+VM_SCRIPT="$BASE_DIR/result-cp/bin/run-ducksnest-test-controlplane-vm"
 TAP_DEVICE="${TAP_DEVICE:-tap0}"
 MAC_ADDRESS="${MAC_ADDRESS:-52:54:00:12:34:01}"
 

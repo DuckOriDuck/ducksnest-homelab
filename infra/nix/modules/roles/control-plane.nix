@@ -4,8 +4,14 @@ let
   # Certificate paths from certToolkit
   caCert = config.certToolkit.cas.k8s.ca.path;
   certs = config.certToolkit.cas.k8s.certs;
+
+  # Bootstrap scripts path
+  bootstrapScripts = ./../../k8s/scripts;
 in
 {
+  imports = [
+    ../kubernetes-bootstrap.nix
+  ];
   virtualisation.containerd.enable = true;
 
   services.etcd = {
@@ -145,81 +151,48 @@ in
   boot.kernelModules = [ "overlay" "br_netfilter" ];
   boot.kernelPackages = pkgs.linuxPackages;
 
-  systemd.services.generate-admin-kubeconfig = {
-    description = "Generate admin kubeconfig";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "agenix.service" "kube-apiserver.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
+  # Kubernetes bootstrap configuration
+  kubernetes.bootstrap = {
+    enable = true;
+
+    tasks = {
+      generate-kubeconfig = {
+        description = "Generate admin kubeconfig";
+        script = "${bootstrapScripts}/generate-admin-kubeconfig.sh";
+        args = [
+          "/etc/kubernetes/cluster-admin.kubeconfig"
+          caCert
+          certs.kube-admin.path
+          certs.kube-admin.keyPath
+          "https://${config.networking.hostName}:6443"
+          "ducksnest-k8s"
+          "kubernetes-admin"
+        ];
+        after = [ "agenix.service" "kube-apiserver.service" ];
+      };
+
+      bootstrap-rbac = {
+        description = "Bootstrap Kubernetes RBAC rules";
+        script = "${bootstrapScripts}/bootstrap-rbac.sh";
+        args = [
+          "${pkgs.kubernetes}/bin/kubectl"
+          caCert
+          "https://${config.networking.hostName}:6443"
+          "/etc/kubernetes/rbac"
+          "30"
+          "2"
+        ];
+        after = [ "k8s-bootstrap-generate-kubeconfig.service" ];
+        environment = {
+          KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
+        };
+        preStart = ''
+          # Copy RBAC manifests to standard location
+          mkdir -p /etc/kubernetes/rbac
+          cp -r ${./../../k8s/rbac}/* /etc/kubernetes/rbac/ 2>/dev/null || true
+        '';
+      };
     };
-    script = ''
-      mkdir -p /etc/kubernetes
-      cat > /etc/kubernetes/cluster-admin.kubeconfig <<EOF
-apiVersion: v1
-kind: Config
-clusters:
-- cluster:
-    certificate-authority: ${caCert}
-    server: https://${config.networking.hostName}:6443
-  name: ducksnest-k8s
-contexts:
-- context:
-    cluster: ducksnest-k8s
-    user: kubernetes-admin
-  name: default
-current-context: default
-users:
-- name: kubernetes-admin
-  user:
-    client-certificate: ${certs.kube-admin.path}
-    client-key: ${certs.kube-admin.keyPath}
-EOF
-      chmod 600 /etc/kubernetes/cluster-admin.kubeconfig
-      echo "Admin kubeconfig generated at /etc/kubernetes/cluster-admin.kubeconfig"
-    '';
-  };
-
-  systemd.services.bootstrap-rbac = {
-    description = "Bootstrap Kubernetes RBAC rules";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "generate-admin-kubeconfig.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      Environment = "KUBECONFIG=/etc/kubernetes/cluster-admin.kubeconfig";
-    };
-    script = ''
-      # Wait for API server to be ready
-      echo "Waiting for API server to be ready..."
-      for i in {1..30}; do
-        if ${pkgs.curl}/bin/curl -s --cacert ${caCert} https://${config.networking.hostName}:6443/healthz > /dev/null 2>&1; then
-          echo "API server is ready"
-          break
-        fi
-        echo "Attempt $i/30: API server not ready yet, waiting..."
-        sleep 2
-      done
-
-      # Apply bootstrap RBAC manifests
-      mkdir -p /etc/kubernetes/rbac
-
-      # Copy RBAC manifests to standard location
-      cp -r ${./../../k8s/rbac}/* /etc/kubernetes/rbac/ 2>/dev/null || true
-
-      if [ -d "/etc/kubernetes/rbac" ] && [ -n "$(ls -A /etc/kubernetes/rbac/*.yaml 2>/dev/null)" ]; then
-        echo "Applying RBAC manifests from /etc/kubernetes/rbac"
-        for f in /etc/kubernetes/rbac/*.yaml; do
-          if [ -f "$f" ]; then
-            echo "Applying $f"
-            ${pkgs.kubernetes}/bin/kubectl apply -f "$f" || echo "Warning: Failed to apply $f"
-          fi
-        done
-        echo "Bootstrap RBAC rules applied"
-      else
-        echo "Warning: No RBAC manifests found"
-      fi
-    '';
   };
 
   environment.variables.KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";

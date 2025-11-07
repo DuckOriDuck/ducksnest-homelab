@@ -8,8 +8,9 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Script directory
+# Script directory and base directory (infra/nix)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo -e "${BLUE}🔨 DucksNest Kubernetes Test VM Builder${NC}"
 echo -e "${BLUE}======================================${NC}\n"
@@ -35,8 +36,8 @@ warning() {
 }
 
 # Check if we're in the right directory
-if [ ! -f "$SCRIPT_DIR/flake.nix" ]; then
-    error "Not in infra/nix directory. Please run from there."
+if [ ! -f "$BASE_DIR/flake.nix" ]; then
+    error "Cannot find flake.nix at $BASE_DIR. Please check the script location."
     exit 1
 fi
 
@@ -84,6 +85,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Change to base directory for nix build
+cd "$BASE_DIR"
+
 # Build test-controlplane
 if [ "$BUILD_CP" = true ]; then
     section "Building test-controlplane VM..."
@@ -91,7 +95,7 @@ if [ "$BUILD_CP" = true ]; then
         --out-link result-cp \
         -L 2>&1 | tail -20; then
         success "test-controlplane VM built successfully"
-        success "VM script: ./result-cp/bin/run-ducksnest-test-controlplane-vm"
+        success "VM script: $BASE_DIR/result-cp/bin/run-ducksnest-test-controlplane-vm"
     else
         error "Failed to build test-controlplane VM"
         exit 1
@@ -105,7 +109,7 @@ if [ "$BUILD_WN" = true ]; then
         --out-link result-wn \
         -L 2>&1 | tail -20; then
         success "test-worker-node VM built successfully"
-        success "VM script: ./result-wn/bin/run-ducksnest-test-worker-node-vm"
+        success "VM script: $BASE_DIR/result-wn/bin/run-ducksnest-test-worker-node-vm"
     else
         error "Failed to build test-worker-node VM"
         exit 1
@@ -118,11 +122,14 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 
 # Create wrapper scripts for VMs that replace user-mode networking with TAP
 if [ "$BUILD_CP" = true ]; then
-    cat > "$SCRIPT_DIR/run-cp-vm-wrapper.sh" << 'EOF'
+    cat > "$SCRIPT_DIR/run-cp-vm.sh" << 'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-VM_SCRIPT="$(dirname "$0")/result-cp/bin/run-ducksnest-test-controlplane-vm"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+VM_SCRIPT="$BASE_DIR/result-cp/bin/run-ducksnest-test-controlplane-vm"
 TAP_DEVICE="${TAP_DEVICE:-tap0}"
 MAC_ADDRESS="${MAC_ADDRESS:-52:54:00:12:34:01}"
 
@@ -132,22 +139,25 @@ MAC_ADDRESS="${MAC_ADDRESS:-52:54:00:12:34:01}"
 
 sed 's| -net nic,netdev=user\.0,model=virtio -netdev user,id=user\.0,"[^"]*"| -net nic,netdev=tap0,model=virtio,macaddr='"${MAC_ADDRESS}"' -netdev tap,id=tap0,ifname='"${TAP_DEVICE}"',script=no,downscript=no|g' "$VM_SCRIPT" | bash
 EOF
-    chmod +x "$SCRIPT_DIR/run-cp-vm-wrapper.sh"
+    chmod +x "$SCRIPT_DIR/run-cp-vm.sh"
 fi
 
 if [ "$BUILD_WN" = true ]; then
-    cat > "$SCRIPT_DIR/run-wn-vm-wrapper.sh" << 'EOF'
+    cat > "$SCRIPT_DIR/run-wn-vm.sh" << 'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-VM_SCRIPT="$(dirname "$0")/result-wn/bin/run-ducksnest-test-worker-node-vm"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+VM_SCRIPT="$BASE_DIR/result-wn/bin/run-ducksnest-test-worker-node-vm"
 TAP_DEVICE="${TAP_DEVICE:-tap1}"
 MAC_ADDRESS="${MAC_ADDRESS:-52:54:00:12:34:02}"
 
 # Replace user-mode networking with TAP networking in the VM script
 sed 's| -net nic,netdev=user\.0,model=virtio -netdev user,id=user\.0,"[^"]*"| -net nic,netdev=tap1,model=virtio,macaddr='"${MAC_ADDRESS}"' -netdev tap,id=tap1,ifname='"${TAP_DEVICE}"',script=no,downscript=no|g' "$VM_SCRIPT" | bash
 EOF
-    chmod +x "$SCRIPT_DIR/run-wn-vm-wrapper.sh"
+    chmod +x "$SCRIPT_DIR/run-wn-vm.sh"
 fi
 
 # Show how to run
@@ -164,15 +174,15 @@ echo -e "      • VMs will be at 10.100.0.2 (CP) and 10.100.0.3 (WN)"
 echo -e "\n${BLUE}To run the VMs manually:${NC}"
 if [ "$BUILD_CP" = true ]; then
     echo -e "  ${YELLOW}Control Plane:${NC}"
-    echo -e "    ./result-cp/bin/run-ducksnest-test-controlplane-vm"
-    echo -e "    Or with custom QEMU options:"
-    echo -e "    QEMU_OPTS=\"-nographic\" ./run-cp-vm-wrapper.sh"
+    echo -e "    $BASE_DIR/result-cp/bin/run-ducksnest-test-controlplane-vm"
+    echo -e "    Or with TAP networking:"
+    echo -e "    $SCRIPT_DIR/run-cp-vm.sh"
 fi
 if [ "$BUILD_WN" = true ]; then
     echo -e "  ${YELLOW}Worker Node:${NC}"
-    echo -e "    ./result-wn/bin/run-ducksnest-test-worker-node-vm"
-    echo -e "    Or with custom QEMU options:"
-    echo -e "    QEMU_OPTS=\"-nographic\" ./run-wn-vm-wrapper.sh"
+    echo -e "    $BASE_DIR/result-wn/bin/run-ducksnest-test-worker-node-vm"
+    echo -e "    Or with TAP networking:"
+    echo -e "    $SCRIPT_DIR/run-wn-vm.sh"
 fi
 
 # Optional: Run VMs in tmux (headless in tmux panes)
@@ -262,16 +272,16 @@ if [ "$RUN_AFTER" = true ]; then
   fi
 
   # Control Plane 창 생성 + 실행 (작업 디렉토리 고정 + bash -lc)
-  tmux new-session -d -s ducksnest-test -n control -c "$SCRIPT_DIR" \
-  "bash -lc 'QEMU_OPTS=\"'"${CP_QEMU_OPTS}"'\" ./run-cp-vm-wrapper.sh 2>&1 | tee cp.log; echo; read -n1 -p \"[CP ENDED] Press any key...]\"'"
+  tmux new-session -d -s ducksnest-test -n control -c "$BASE_DIR" \
+  "bash -lc 'QEMU_OPTS=\"'"${CP_QEMU_OPTS}"'\" $SCRIPT_DIR/run-cp-vm.sh 2>&1 | tee cp.log; echo; read -n1 -p \"[CP ENDED] Press any key...]\"'"
 
   success "Control Plane VM launched in tmux window 'control'."
 
 
   # Worker 창 생성 + 실행(선택)
   if [ "$BUILD_WN" = true ]; then
-    tmux new-window -t ducksnest-test -n worker -c "$SCRIPT_DIR" \
-    "bash -lc 'QEMU_OPTS=\"'"${WN_QEMU_OPTS}"'\" ./run-wn-vm-wrapper.sh 2>&1 | tee wn.log; echo; read -n1 -p \"[WN ENDED] Press any key...]\"'"
+    tmux new-window -t ducksnest-test -n worker -c "$BASE_DIR" \
+    "bash -lc 'QEMU_OPTS=\"'"${WN_QEMU_OPTS}"'\" $SCRIPT_DIR/run-wn-vm.sh 2>&1 | tee wn.log; echo; read -n1 -p \"[WN ENDED] Press any key...]\"'"
     success "Worker Node VM launched in tmux window 'worker'."
   fi
 
