@@ -1,6 +1,7 @@
 # ducksnest-homelab
 - [Introduction](#introduction)
 - [Purpose](#purpose)
+  - [Master Goal](#master-goal)
 - [Tech Stacks](#tech-stacks)
   - [Hardware](#hardware)
     - [On Premises](#on-premises)
@@ -10,8 +11,11 @@
   - [Topology Summary (Assuming EC2 as Control Plane)](#topology-summary-assuming-ec2-as-control-plane)
   - [Network & CIDR Map](#network--cidr-map)
 - [Current Progress](#current-progress)
+  - [EC2 Provisioning Problem – Fixed](#ec2-provisioning-problem--fixed)
   - [Kubernetes the Nix Way](#kubernetes-the-nix-way)
   - [WN Auto Join](#wn-auto-join)
+  - [Test Environment Configuration With QEMU](#test-environment-configuration-with-qemu)
+- [Current Issues](#current-issues)
 
 ## Introduction
 This is My hybrid cloud homelab: NixOS on-prem worker node, EC2 control plane.
@@ -93,4 +97,7 @@ I plan to deploy my personal blog and service portfolios on this cluster.
 ### Test Environment Configuration With QEMU
 
 ## Current Issues
-- Calico CNI is not getting installed well since I'm Not using the recommended kubeadm bootstraping way. Trying to search for solutions w/ [Kubernetes the Hard way-kelseyhightower pod-network-routes](https://github.com/kelseyhightower/kubernetes-the-hard-way/blob/master/docs/11-pod-network-routes.md), [Kubernetes-The-Hard-Way-on-BareMetal-by Kamran](https://github.com/Praqma/LearnKubernetes/blob/master/kamran/Kubernetes-The-Hard-Way-on-BareMetal.md), [Calico The Hard Way](https://docs.tigera.io/calico/latest/getting-started/kubernetes/hardway/overview)
+- Calico CNI is not getting installed well since I'm Not using the recommended kubeadm bootstraping way. Trying to search for solutions w/
+  - [Kubernetes the Hard way-kelseyhightower pod-network-routes](https://github.com/kelseyhightower/kubernetes-the-hard-way/blob/master/docs/11-pod-network-routes.md)
+  - [Kubernetes-The-Hard-Way-on-BareMetal-by Kamran](https://github.com/Praqma/LearnKubernetes/blob/master/kamran/Kubernetes-The-Hard-Way-on-BareMetal.md)
+  - [Calico The Hard Way](https://docs.tigera.io/calico/latest/getting-started/kubernetes/hardway/overview)
