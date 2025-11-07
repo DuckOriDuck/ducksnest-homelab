@@ -12,7 +12,6 @@ in
   environment.systemPackages = with pkgs; [
     kubernetes
     k9s
-    calico-cni-plugin
     cri-tools
     util-linux
     coreutils
@@ -47,17 +46,6 @@ in
         caFile = caCert;
         certFile = certs.kubelet.path;
         keyFile = certs.kubelet.keyPath;
-      };
-      cni = {
-        packages = with pkgs; [ calico-cni-plugin cni-plugins ];
-        config = [{
-          name = "calico";
-          cniVersion = "0.4.0";
-          type = "calico";
-          ipam = {
-            type = "calico-ipam";
-          };
-        }];
       };
     };
 
