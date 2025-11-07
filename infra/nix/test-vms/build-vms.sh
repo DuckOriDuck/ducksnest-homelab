@@ -46,6 +46,7 @@ BUILD_CP=true
 BUILD_WN=true
 RUN_AFTER=false
 USE_TAP=false
+CLEAN_VOLUMES=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -66,6 +67,10 @@ while [[ $# -gt 0 ]]; do
             RUN_AFTER=true
             shift
             ;;
+        --clean)
+            CLEAN_VOLUMES=true
+            shift
+            ;;
         --help)
             echo "Usage: $0 [OPTIONS]"
             echo ""
@@ -75,6 +80,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --run         Run VMs after building (requires tmux)"
             echo "  --tap         Setup tap bridge and run VMs with networking (requires sudo)"
             echo "  --internet    Alias for --tap: enables internet access for VMs"
+            echo "  --clean       Delete existing VM disk volumes before building"
             echo "  --help        Show this help message"
             exit 0
             ;;
@@ -87,6 +93,23 @@ done
 
 # Change to base directory for nix build
 cd "$BASE_DIR"
+
+# Clean existing volumes if requested
+if [ "$CLEAN_VOLUMES" = true ]; then
+    section "Cleaning existing VM disk volumes..."
+
+    if [ "$BUILD_CP" = true ] && [ -f "$BASE_DIR/ducksnest-test-controlplane.qcow2" ]; then
+        rm -f "$BASE_DIR/ducksnest-test-controlplane.qcow2"
+        success "Removed control-plane disk volume"
+    fi
+
+    if [ "$BUILD_WN" = true ] && [ -f "$BASE_DIR/ducksnest-test-worker-node.qcow2" ]; then
+        rm -f "$BASE_DIR/ducksnest-test-worker-node.qcow2"
+        success "Removed worker-node disk volume"
+    fi
+
+    success "VM volumes cleaned. Fresh volumes will be created on first boot."
+fi
 
 # Build test-controlplane
 if [ "$BUILD_CP" = true ]; then

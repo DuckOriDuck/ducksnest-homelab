@@ -6,7 +6,14 @@ let
   certs = config.certToolkit.cas.k8s.certs;
 in
 {
-  virtualisation.containerd.enable = true;
+  virtualisation.containerd = {
+    enable = true;
+    settings = {
+      plugins."io.containerd.grpc.v1.cri" = {
+        sandbox_image = "registry.k8s.io/pause:3.9";
+      };
+    };
+  };
   
 
   environment.systemPackages = with pkgs; [
@@ -47,12 +54,34 @@ in
         certFile = certs.kubelet.path;
         keyFile = certs.kubelet.keyPath;
       };
+      cni = {
+        packages = [ pkgs.calico-cni-plugin ];
+        config = [
+          {
+            type = "calico";
+            name = "k8s-pod-network";
+            cniVersion = "0.3.1";
+            log_level = "info";
+            datastore_type = "kubernetes";
+            mtu = 1500;
+            ipam = {
+              type = "calico-ipam";
+            };
+            policy = {
+              type = "k8s";
+            };
+            kubernetes = {
+              kubeconfig = "/var/lib/cni/net.d/calico-kubeconfig";
+            };
+          }
+        ];
+      };
     };
 
     flannel.enable = false;
     proxy.enable = false;
     apiserver.enable = false;
-    controllerManager.enable = false; 
+    controllerManager.enable = false;
     scheduler.enable = false;
     addons.dns.enable = false;
   };

@@ -12,7 +12,14 @@ in
   imports = [
     ../kubernetes-bootstrap.nix
   ];
-  virtualisation.containerd.enable = true;
+  virtualisation.containerd = {
+    enable = true;
+    settings = {
+      plugins."io.containerd.grpc.v1.cri" = {
+        sandbox_image = "registry.k8s.io/pause:3.9";
+      };
+    };
+  };
 
   services.etcd = {
     enable = true;
@@ -29,6 +36,8 @@ in
     kustomize
     k9s
     cri-tools
+    calicoctl
+    calico-cni-plugin
     util-linux
     coreutils
     iproute2
@@ -122,6 +131,28 @@ in
         certFile = certs.kubelet.path;
         keyFile = certs.kubelet.keyPath;
       };
+      cni = {
+        packages = [ pkgs.calico-cni-plugin ];
+        config = [
+          {
+            type = "calico";
+            name = "k8s-pod-network";
+            cniVersion = "0.3.1";
+            log_level = "info";
+            datastore_type = "kubernetes";
+            mtu = 1500;
+            ipam = {
+              type = "calico-ipam";
+            };
+            policy = {
+              type = "k8s";
+            };
+            kubernetes = {
+              kubeconfig = "/var/lib/cni/net.d/calico-kubeconfig";
+            };
+          }
+        ];
+      };
     };
 
     proxy.enable = false;
@@ -139,6 +170,11 @@ in
   boot.kernelModules = [ "overlay" "br_netfilter" ];
   boot.kernelPackages = pkgs.linuxPackages;
 
+  # Create writable directory for CNI configuration
+  systemd.tmpfiles.rules = [
+    "d /var/lib/cni/net.d 0755 root root -"
+  ];
+
   # Kubernetes bootstrap configuration
   kubernetes.bootstrap = {
     enable = true;
@@ -155,6 +191,21 @@ in
           "https://${config.networking.hostName}:6443"
           "ducksnest-k8s"
           "kubernetes-admin"
+        ];
+        after = [ "agenix.service" "kube-apiserver.service" ];
+      };
+
+      generate-cni-kubeconfig = {
+        description = "Generate CNI kubeconfig";
+        script = "${bootstrapScripts}/generate-cni-kubeconfig.sh";
+        args = [
+          "/var/lib/cni/net.d/calico-kubeconfig"
+          caCert
+          certs.calico-cni.path
+          certs.calico-cni.keyPath
+          "https://${config.networking.hostName}:6443"
+          "ducksnest-k8s"
+          "calico-cni"
         ];
         after = [ "agenix.service" "kube-apiserver.service" ];
       };

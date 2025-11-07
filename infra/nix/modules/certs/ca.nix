@@ -49,7 +49,7 @@
   };
 
   certToolkit.cas.k8s.certs = lib.mkMerge [
-    # Worker node certificates
+    # Common certificates for all nodes
     {
       kubelet = {
         commonName = "system:node:${config.networking.hostName}";
@@ -60,6 +60,13 @@
         names = {
           O = "system:nodes";
         };
+      };
+
+      calico-cni = {
+        commonName = "calico-cni";
+        owner = "root";
+        usages = [ "client auth" ];
+        expiry = "8760h";
       };
     }
 
