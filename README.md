@@ -1,6 +1,7 @@
 # ducksnest-homelab
 - [Introduction](#introduction)
 - [Purpose](#purpose)
+  - [Master Goal](#master-goal)
 - [Tech Stacks](#tech-stacks)
   - [Hardware](#hardware)
     - [On Premises](#on-premises)
@@ -10,8 +11,11 @@
   - [Topology Summary (Assuming EC2 as Control Plane)](#topology-summary-assuming-ec2-as-control-plane)
   - [Network & CIDR Map](#network--cidr-map)
 - [Current Progress](#current-progress)
+  - [EC2 Provisioning Problem – Fixed](#ec2-provisioning-problem--fixed)
   - [Kubernetes the Nix Way](#kubernetes-the-nix-way)
   - [WN Auto Join](#wn-auto-join)
+  - [Test Environment Configuration With QEMU](#test-environment-configuration-with-qemu)
+- [Current Issues](#current-issues)
 
 ## Introduction
 This is My hybrid cloud homelab: NixOS on-prem worker node, EC2 control plane.
@@ -74,9 +78,27 @@ I plan to deploy my personal blog and service portfolios on this cluster.
 | **Node IP Autodetection**  | interface=wlan* | Excludes tailscale0 and uses the Wi-Fi interface (wlan0) as the node’s primary IP for Calico VXLAN encapsulation and routing. |
 | **Calico MTU**             | 1280 | Aligned with Tailnet MTU to prevent fragmentation after encapsulation in tailnet|
 
+
 ## Current Progress
+### EC2 Provisioning Problem – Fixed  
+- **Problem:**  
+  - Building NixOS from scratch on a low-cost EC2 instance took way too long - around **15–20 minutes** per build, mostly due to limited disk I/O and CPU performance.  
+- **Options considered:**  
+  - AMI Baking: Way too slow and complicated to automate for every new Nix deployment. Needed something simpler.  
+  - Cachix: Starter plan costs **€50/month**, which was far beyond my budget.  
+  - Temporary “super build machine”: Possible, but again, too complex for what I needed.  
+  - **S3 Binary Caching:** Whenever a build succeeds (either locally or in GitHub Actions), push the Nix binary cache to **S3**, then use it as a **substitute source** on EC2.  
+    → Simple, cheap, and effective this is the method I went with.  
+- **Result:**  
+  - Reduced initial NixOS build time on low-cost EC2 instances by **over 93%**, bringing it down to **under 1 minute**.
 ### Kubernetes the Nix Way
 
 ### WN Auto Join
 
 ### Test Environment Configuration With QEMU
+
+## Current Issues
+- Calico CNI is not getting installed well since I'm Not using the recommended kubeadm bootstraping way. Trying to search for solutions w/
+  - [Kubernetes the Hard way-kelseyhightower pod-network-routes](https://github.com/kelseyhightower/kubernetes-the-hard-way/blob/master/docs/11-pod-network-routes.md)
+  - [Kubernetes-The-Hard-Way-on-BareMetal-by Kamran](https://github.com/Praqma/LearnKubernetes/blob/master/kamran/Kubernetes-The-Hard-Way-on-BareMetal.md)
+  - [Calico The Hard Way](https://docs.tigera.io/calico/latest/getting-started/kubernetes/hardway/overview)
