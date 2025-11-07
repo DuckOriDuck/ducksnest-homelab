@@ -78,6 +78,7 @@ I plan to deploy my personal blog and service portfolios on this cluster.
 | **Node IP Autodetection**  | interface=wlan* | Excludes tailscale0 and uses the Wi-Fi interface (wlan0) as the node’s primary IP for Calico VXLAN encapsulation and routing. |
 | **Calico MTU**             | 1280 | Aligned with Tailnet MTU to prevent fragmentation after encapsulation in tailnet|
 
+
 ## Current Progress
 ### EC2 Provisioning Problem – Fixed  
 - **Problem:**  
