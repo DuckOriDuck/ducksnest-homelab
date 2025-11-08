@@ -218,6 +218,13 @@ in
         after = [ "agenix.service" "kube-apiserver.service" ];
       };
 
+      setup-calico-ipam = {
+        description = "Create calico-ipam symlink";
+        script = "${bootstrapScripts}/setup-calico-ipam.sh";
+        args = [];
+        after = [ ];
+      };
+
       bootstrap-rbac = {
         description = "Bootstrap Kubernetes RBAC rules";
         script = "${bootstrapScripts}/bootstrap-rbac.sh";

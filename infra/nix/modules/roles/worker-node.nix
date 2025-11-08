@@ -135,6 +135,13 @@ in
         ];
         after = [ "agenix.service" ];
       };
+
+      setup-calico-ipam = {
+        description = "Create calico-ipam symlink";
+        script = "${bootstrapScripts}/setup-calico-ipam.sh";
+        args = [];
+        after = [ ];
+      };
     };
   };
 
