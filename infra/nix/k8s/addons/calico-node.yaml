@@ -33,11 +33,12 @@ spec:
       priorityClassName: system-node-critical
       containers:
         - name: calico-node
-          image: calico/node:v3.20.0
+          image: calico/node:v3.29.3
           env:
             # Kubernetes API server connection
+            # Use control plane IP instead of Service IP (10.0.0.1) because hostNetwork=true
             - name: KUBERNETES_SERVICE_HOST
-              value: "ducksnest-test-controlplane"
+              value: "10.100.0.2"
             - name: KUBERNETES_SERVICE_PORT
               value: "6443"
             # Calico datastore config
@@ -50,9 +51,9 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
             - name: CALICO_NETWORKING_BACKEND
-              value: bird
+              value: vxlan
             - name: CLUSTER_TYPE
-              value: "k8s,bgp"
+              value: "k8s"
             # IP Pool CIDR
             - name: CALICO_IPV4POOL_CIDR
               value: "10.244.0.0/16"
@@ -87,7 +88,7 @@ spec:
             failureThreshold: 6
           readinessProbe:
             exec:
-              command: ["/bin/calico-node","-bird-ready","-felix-ready"]
+              command: ["/bin/calico-node","-felix-ready"]
             periodSeconds: 10
           volumeMounts:
             - mountPath: /lib/modules
@@ -102,7 +103,6 @@ spec:
             - mountPath: /var/run/nodeagent
               name: policysync
       volumes:
-        # NixOS: 커널 모듈 경로
         - name: lib-modules
           hostPath:
             path: /run/booted-system/kernel-modules

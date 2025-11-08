@@ -7,6 +7,12 @@ let
 
   # Bootstrap scripts path
   bootstrapScripts = ./../../k8s/scripts;
+  calicoCniConfig = ./../../k8s/calico/10-calico.conflist;
+  calicoIpPool = ./../../k8s/calico/ip-pool.yaml;
+  calicoCrds = pkgs.fetchurl {
+    url = "https://raw.githubusercontent.com/projectcalico/calico/v3.29.3/manifests/crds.yaml";
+    sha256 = "1620ee6f539de44bbb3ec4aa3c2687b5023d4ee30795b30663ab3423b0c5f5d5";
+  };
 in
 {
   imports = [
@@ -38,6 +44,7 @@ in
     cri-tools
     calicoctl
     calico-cni-plugin
+    calico-kube-controllers
     util-linux
     coreutils
     iproute2
@@ -173,6 +180,7 @@ in
   # Create writable directory for CNI configuration
   systemd.tmpfiles.rules = [
     "d /var/lib/cni/net.d 0755 root root -"
+    "C /var/lib/cni/net.d/10-calico.conflist 0644 root root - ${calicoCniConfig}"
   ];
 
   # Kubernetes bootstrap configuration
@@ -230,6 +238,59 @@ in
           mkdir -p /etc/kubernetes/rbac
           cp -r ${./../../k8s/rbac}/* /etc/kubernetes/rbac/ 2>/dev/null || true
         '';
+      };
+
+      calico-crds = {
+        description = "Install Calico CRDs";
+        script = "${bootstrapScripts}/apply-manifests.sh";
+        args = [
+          "${pkgs.kubernetes}/bin/kubectl"
+          "${calicoCrds}"
+        ];
+        after = [ "k8s-bootstrap-bootstrap-rbac.service" ];
+        environment = {
+          KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
+        };
+      };
+
+      calico-ip-pool = {
+        description = "Configure Calico VXLAN IP pool";
+        script = "${bootstrapScripts}/apply-manifests.sh";
+        args = [
+          "${pkgs.kubernetes}/bin/kubectl"
+          "${calicoIpPool}"
+        ];
+        after = [ "k8s-bootstrap-calico-crds.service" ];
+        environment = {
+          KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
+        };
+      };
+
+      calico-rbac = {
+        description = "Apply Calico RBAC";
+        script = "${bootstrapScripts}/apply-manifests.sh";
+        args = [
+          "${pkgs.kubernetes}/bin/kubectl"
+          "${./../../k8s/rbac/04-calico-cni.yaml}"
+          "${./../../k8s/rbac/05-calico-node.yaml}"
+        ];
+        after = [ "k8s-bootstrap-bootstrap-rbac.service" ];
+        environment = {
+          KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
+        };
+      };
+
+      calico-node = {
+        description = "Deploy Calico Node DaemonSet";
+        script = "${bootstrapScripts}/apply-manifests.sh";
+        args = [
+          "${pkgs.kubernetes}/bin/kubectl"
+          "${./../../k8s/addons/calico-node.yaml}"
+        ];
+        after = [ "k8s-bootstrap-calico-rbac.service" "k8s-bootstrap-calico-ip-pool.service" ];
+        environment = {
+          KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
+        };
       };
     };
   };
