@@ -1,4 +1,12 @@
 # ducksnest-homelab
+
+## Documentation
+
+- **[Infrastructure Overview](infra/README.md)** - Terraform and NixOS infrastructure documentation
+- **[NixOS Architecture](infra/nix/README.md)** - Detailed NixOS configuration and Kubernetes setup
+
+---
+
 - [Introduction](#introduction)
 - [Purpose](#purpose)
   - [Master Goal](#master-goal)
@@ -53,7 +61,7 @@ I plan to deploy my personal blog and service portfolios on this cluster.
 | **Container Orchestration** | Kubernetes | I chose Kubernetes because it felt like the most balanced option. It lets me manage nodes and containers automatically in one place, and with tools like Helm or Argo, even the internal workflows can stay declarative. |
 | **VPN** | Tailscale |I chose **Tailscale** because it’s simple and stable. I liked that I can later build my own VPN server with Headscale, and it’ll still work with the same Tailscale clients. It also connects to the network with just one command in my CI/CD pipeline, and managing network policies from the SaaS dashboard is super intuitive. |
 | **CNI** | Calico | To support the hybrid networking model of Local + Tailscale VPN, I needed a CNI that could handle flexible routing and policy management without adding too much overhead. especially since this is my first time managing a Kubernetes cluster, so I went with **Calico**. -> **Flannel** was one of the options, but it’s more limited in terms of routing control and network policy features, which are essential for hybrid setups like this. -> **Cilium** was an option. it’s powerful and offers great eBPF-based observability, but it felt a bit overkill for my case, I might give it a try later once I’m more confident, it’s definitely an appealing technology. |
-| **IaC** | NixOS Modules + Terraform | I use NixOS modules to manage Linux package dependencies because, NixOS. And I thought it was a good time to learn Terraform for provisioning cloud resources. AWS-native IaC tools felt too vendor-locked for my taste(I know Terraform is still tied to AWS in this case, but it’s a more open and flexible option overall.)|
+| **IaC** | NixOS Modules + Terraform | I use NixOS modules to manage Linux package dependencies because, NixOS. And I thought it was a good time to learn Terraform for provisioning cloud resources. AWS-native IaC tools felt too vendor-locked for my taste(I know Terraform is still tied to AWS in this case, but it's a more open and flexible option overall.). → See [infra/README.md](infra/README.md) and [infra/nix/README.md](infra/nix/README.md)|
 | **CI/CD** | GitHub Actions | It was the most simple and intuitive |
 
 
@@ -92,6 +100,12 @@ I plan to deploy my personal blog and service portfolios on this cluster.
 - **Result:**  
   - Reduced initial NixOS build time on low-cost EC2 instances by **over 93%**, bringing it down to **under 1 minute**.
 ### Kubernetes the Nix Way
+
+All Kubernetes components are configured declaratively using NixOS modules. The cluster bootstraps automatically at system boot with:
+- TLS certificates managed by K8Nix certToolkit and agenix
+- Systemd-based bootstrap tasks for RBAC, CRDs, and addons
+
+**→ See [infra/nix/README.md](infra/nix/README.md) for comprehensive architecture documentation**
 
 ### WN Auto Join
 
