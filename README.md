@@ -110,9 +110,3 @@ All Kubernetes components are configured declaratively using NixOS modules. The 
 ### WN Auto Join
 
 ### Test Environment Configuration With QEMU
-
-## Current Issues
-- Calico CNI is not getting installed well since I'm Not using the recommended kubeadm bootstraping way. Trying to search for solutions w/
-  - [Kubernetes the Hard way-kelseyhightower pod-network-routes](https://github.com/kelseyhightower/kubernetes-the-hard-way/blob/master/docs/11-pod-network-routes.md)
-  - [Kubernetes-The-Hard-Way-on-BareMetal-by Kamran](https://github.com/Praqma/LearnKubernetes/blob/master/kamran/Kubernetes-The-Hard-Way-on-BareMetal.md)
-  - [Calico The Hard Way](https://docs.tigera.io/calico/latest/getting-started/kubernetes/hardway/overview)

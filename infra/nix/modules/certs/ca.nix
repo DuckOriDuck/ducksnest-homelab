@@ -49,7 +49,7 @@
   };
 
   certToolkit.cas.k8s.certs = lib.mkMerge [
-    # Worker node certificates
+    # Common certificates for all nodes
     {
       kubelet = {
         commonName = "system:node:${config.networking.hostName}";
@@ -60,6 +60,13 @@
         names = {
           O = "system:nodes";
         };
+      };
+
+      calico-cni = {
+        commonName = "calico-cni";
+        owner = "root";
+        usages = [ "client auth" ];
+        expiry = "8760h";
       };
     }
 
@@ -98,7 +105,7 @@
           "kubernetes.default"
           "kubernetes.default.svc"
           "kubernetes.default.svc.cluster.local"
-        ];
+        ] ++ (if config.networking.hostName == "ducksnest-test-controlplane" then [ "10.100.0.2" ] else []);
         owner = "kubernetes";
         usages = [ "server auth" ];
         expiry = "8760h";

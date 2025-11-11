@@ -7,6 +7,7 @@
     ../../modules/common/security.nix
     ../../modules/certs/ca.nix
     ../../modules/roles/control-plane.nix
+    ../../environments/test.nix
   ];
 
   networking.hostName = "ducksnest-test-controlplane";
@@ -31,13 +32,17 @@
     8472  # VXLAN for Calico/Flannel if enabled
   ];
 
+  # Add host entries for all cluster nodes
+  networking.extraHosts = lib.concatStringsSep "\n" (
+    map (node: "${node.ipAddress} ${node.hostname}") config.cluster.workerNodes
+  );
+
   # Test VM: Set password for oriduckduck user
   users.users.oriduckduck = lib.mkForce {
     isNormalUser = true;
     description = "oriduckduck";
     extraGroups = [ "networkmanager" "wheel" ];
     initialPassword = "test";  # Simple password for testing
-    hashedPassword = "$6$ducksalt$KGltfd/BBYujjtcaiqAuI4kn4rXQZiVQtodHVVyFlSCyAHh/LSoowQnovUGDsuNWjZzTfd6l/fvi/dsAjxPyo/";  # Deterministic hash for 'test'
     packages = with pkgs; [];
   };
 

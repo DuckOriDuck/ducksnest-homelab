@@ -4,7 +4,7 @@ This document is still under heavy revision, and major updates will be made soon
 Currently, the configurations are set with firebat-laptop as the control plane, and most parameters are tuned for the test environment.
 This setup was intentional for debugging and validation purposes.
 
-The bare-metal Calico installation issue is approximately 75% resolved, and I’ll soon update the configurations to fully align with the architecture described in this document.**
+The bare-metal Calico installation issue is fully resolved now.
 ## Overview
 
 This homelab uses a modular NixOS Flake structure to declaratively manage a Kubernetes cluster with an **EC2 control plane (AWS)** and **on-premise worker nodes**. The infrastructure is designed with composability, reproducibility, and security in mind.

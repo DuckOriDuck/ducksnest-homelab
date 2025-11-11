@@ -4,16 +4,43 @@ let
   # Certificate paths from certToolkit
   caCert = config.certToolkit.cas.k8s.ca.path;
   certs = config.certToolkit.cas.k8s.certs;
+  calicoCniConfig = ./../../k8s/calico/10-calico.conflist;
+
+  # Cluster configuration shorthand
+  cluster = config.cluster;
+
+  # Bootstrap scripts path
+  bootstrapScripts = ./../../k8s/scripts;
+
+  # Custom calico package with calico-ipam binary
+  calicoWithIpam = pkgs.runCommand "calico-cni-with-ipam" {} ''
+    mkdir -p $out/bin
+    cp -r ${pkgs.calico-cni-plugin}/bin/* $out/bin/
+    # calico-ipam is the same binary as calico
+    cp $out/bin/calico $out/bin/calico-ipam
+  '';
 in
 {
-  virtualisation.containerd.enable = true;
+  imports = [
+    ../kubernetes-bootstrap.nix
+    ../cluster-config.nix
+  ];
+  virtualisation.containerd = {
+    enable = true;
+    settings = {
+      plugins."io.containerd.grpc.v1.cri" = {
+        sandbox_image = "registry.k8s.io/pause:3.9";
+      };
+    };
+  };
   
 
   environment.systemPackages = with pkgs; [
     kubernetes
     k9s
-    calico-cni-plugin
     cri-tools
+    calico-cni-plugin
+    calico-kube-controllers
     util-linux
     coreutils
     iproute2
@@ -31,8 +58,8 @@ in
   ];
 
   services.kubernetes = {
-    masterAddress = "ducksnest-laptop-firebat";
-    clusterCidr = "10.244.0.0/16";
+    masterAddress = cluster.controlPlane.hostname;
+    clusterCidr = cluster.network.podCIDR;
 
     kubelet = {
       enable = true;
@@ -43,28 +70,39 @@ in
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
       kubeconfig = {
-        server = "https://ducksnest-laptop-firebat:6443";
+        server = "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
         certFile = certs.kubelet.path;
         keyFile = certs.kubelet.keyPath;
       };
       cni = {
-        packages = with pkgs; [ calico-cni-plugin cni-plugins ];
-        config = [{
-          name = "calico";
-          cniVersion = "0.4.0";
-          type = "calico";
-          ipam = {
-            type = "calico-ipam";
-          };
-        }];
+        packages = [ calicoWithIpam ];
+        config = [
+          {
+            type = "calico";
+            name = "k8s-pod-network";
+            cniVersion = "0.3.1";
+            log_level = "info";
+            datastore_type = "kubernetes";
+            mtu = 1500;
+            ipam = {
+              type = "calico-ipam";
+            };
+            policy = {
+              type = "k8s";
+            };
+            kubernetes = {
+              kubeconfig = "/var/lib/cni/net.d/calico-kubeconfig";
+            };
+          }
+        ];
       };
     };
 
     flannel.enable = false;
     proxy.enable = false;
     apiserver.enable = false;
-    controllerManager.enable = false; 
+    controllerManager.enable = false;
     scheduler.enable = false;
     addons.dns.enable = false;
   };
@@ -77,7 +115,34 @@ in
 
   boot.kernelModules = [ "overlay" "br_netfilter" ];
 
+  systemd.tmpfiles.rules = [
+    "d /var/lib/cni/net.d 0755 root root -"
+    "C /var/lib/cni/net.d/10-calico.conflist 0644 root root - ${calicoCniConfig}"
+  ];
+
+  # Kubernetes bootstrap configuration
+  kubernetes.bootstrap = {
+    enable = true;
+
+    tasks = {
+      generate-cni-kubeconfig = {
+        description = "Generate CNI kubeconfig for worker node";
+        script = "${bootstrapScripts}/generate-cni-kubeconfig.sh";
+        args = [
+          "/var/lib/cni/net.d/calico-kubeconfig"
+          caCert
+          certs.calico-cni.path
+          certs.calico-cni.keyPath
+          "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}"
+          cluster.name
+          "calico-cni"
+        ];
+        after = [ "agenix.service" ];
+      };
+    };
+  };
+
   systemd.services = {
-    kubelet.after = [ "tailscaled.service" "containerd.service" ];
+    kubelet.after = [ "tailscaled.service" "containerd.service" "k8s-bootstrap-generate-cni-kubeconfig.service" ];
   };
 }

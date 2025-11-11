@@ -10,6 +10,7 @@ NC='\033[0m' # No Color
 
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo -e "${BLUE}🌐 DucksNest Test VM Internet Setup${NC}"
 echo -e "${BLUE}====================================${NC}\n"
@@ -55,8 +56,8 @@ while [[ $# -gt 0 ]]; do
             echo "  • Configuring NAT rules"
             echo ""
             echo "After running this script, you can start VMs with:"
-            echo "  cd $SCRIPT_DIR"
-            echo "  ./build-test-vms.sh --internet"
+            echo "  cd $BASE_DIR"
+            echo "  $SCRIPT_DIR/build-vms.sh --internet"
             echo ""
             echo "Options:"
             echo "  --help    Show this help message"
@@ -160,8 +161,8 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 
 echo -e "${BLUE}Next steps:${NC}"
 echo -e "  1. Build and run the VMs:"
-echo -e "     cd $SCRIPT_DIR"
-echo -e "     ./build-test-vms.sh --internet"
+echo -e "     cd $BASE_DIR"
+echo -e "     $SCRIPT_DIR/build-vms.sh --internet"
 echo ""
 echo -e "  2. Access the VMs once they're running:"
 echo -e "     Control Plane: ssh root@10.100.0.2"

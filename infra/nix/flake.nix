@@ -10,7 +10,7 @@
     };
     agenix.url = "github:ryantm/agenix";
     k8nix-cert-management = {
-      url = "path:../k8nix-cert-management";
+      url = "gitlab:luxzeitlos/k8nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };

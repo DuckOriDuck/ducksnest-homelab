@@ -4,9 +4,40 @@ let
   # Certificate paths from certToolkit
   caCert = config.certToolkit.cas.k8s.ca.path;
   certs = config.certToolkit.cas.k8s.certs;
+
+  # Cluster configuration shorthand
+  cluster = config.cluster;
+
+  # Bootstrap scripts path
+  bootstrapScripts = ./../../k8s/scripts;
+  calicoCniConfig = ./../../k8s/calico/10-calico.conflist;
+  calicoIpPool = ./../../k8s/calico/ip-pool.yaml;
+  calicoCrds = pkgs.fetchurl {
+    url = "https://raw.githubusercontent.com/projectcalico/calico/v3.29.3/manifests/crds.yaml";
+    sha256 = "1620ee6f539de44bbb3ec4aa3c2687b5023d4ee30795b30663ab3423b0c5f5d5";
+  };
+
+  # Custom calico package with calico-ipam binary
+  calicoWithIpam = pkgs.runCommand "calico-cni-with-ipam" {} ''
+    mkdir -p $out/bin
+    cp -r ${pkgs.calico-cni-plugin}/bin/* $out/bin/
+    # calico-ipam is the same binary as calico
+    cp $out/bin/calico $out/bin/calico-ipam
+  '';
 in
 {
-  virtualisation.containerd.enable = true;
+  imports = [
+    ../kubernetes-bootstrap.nix
+    ../cluster-config.nix
+  ];
+  virtualisation.containerd = {
+    enable = true;
+    settings = {
+      plugins."io.containerd.grpc.v1.cri" = {
+        sandbox_image = "registry.k8s.io/pause:3.9";
+      };
+    };
+  };
 
   services.etcd = {
     enable = true;
@@ -22,8 +53,10 @@ in
     kubernetes-helm
     kustomize
     k9s
-    calico-cni-plugin
     cri-tools
+    calicoctl
+    calico-cni-plugin
+    calico-kube-controllers
     util-linux
     coreutils
     iproute2
@@ -44,12 +77,12 @@ in
   ];
 
   services.kubernetes = {
-    masterAddress = config.networking.hostName;
-    clusterCidr = "10.244.0.0/16";
+    masterAddress = cluster.controlPlane.hostname;
+    clusterCidr = cluster.network.podCIDR;
 
     apiserver = {
       enable = true;
-      bindAddress = "0.0.0.0";
+      bindAddress = cluster.controlPlane.bindAddress;
       allowPrivileged = true;
       extraSANs = [
         config.networking.hostName
@@ -80,7 +113,7 @@ in
       tlsCertFile = certs.kube-controller-manager.path;
       tlsKeyFile = certs.kube-controller-manager.keyPath;
       kubeconfig = {
-        server = "https://${config.networking.hostName}:6443";
+        server = "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
         certFile = certs.kube-controller-manager.path;
         keyFile = certs.kube-controller-manager.keyPath;
@@ -90,13 +123,13 @@ in
     scheduler = {
       enable = true;
       kubeconfig = {
-        server = "https://${config.networking.hostName}:6443";
+        server = "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
         certFile = certs.kube-scheduler.path;
         keyFile = certs.kube-scheduler.keyPath;
       };
     };
-    
+
     kubelet = {
       enable = true;
       registerNode = true;
@@ -112,21 +145,32 @@ in
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
       kubeconfig = {
-        server = "https://${config.networking.hostName}:6443";
+        server = "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
         certFile = certs.kubelet.path;
         keyFile = certs.kubelet.keyPath;
       };
       cni = {
-        packages = with pkgs; [ calico-cni-plugin cni-plugins ];
-        config = [{
-          name = "calico";
-          cniVersion = "0.4.0";
-          type = "calico";
-          ipam = {
-            type = "calico-ipam";
-          };
-        }];
+        packages = [ calicoWithIpam ];
+        config = [
+          {
+            type = "calico";
+            name = "k8s-pod-network";
+            cniVersion = "0.3.1";
+            log_level = "info";
+            datastore_type = "kubernetes";
+            mtu = 1500;
+            ipam = {
+              type = "calico-ipam";
+            };
+            policy = {
+              type = "k8s";
+            };
+            kubernetes = {
+              kubeconfig = "/var/lib/cni/net.d/calico-kubeconfig";
+            };
+          }
+        ];
       };
     };
 
@@ -145,81 +189,122 @@ in
   boot.kernelModules = [ "overlay" "br_netfilter" ];
   boot.kernelPackages = pkgs.linuxPackages;
 
-  systemd.services.generate-admin-kubeconfig = {
-    description = "Generate admin kubeconfig";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "agenix.service" "kube-apiserver.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
+  # Create writable directory for CNI configuration
+  systemd.tmpfiles.rules = [
+    "d /var/lib/cni/net.d 0755 root root -"
+    "C /var/lib/cni/net.d/10-calico.conflist 0644 root root - ${calicoCniConfig}"
+  ];
+
+  # Kubernetes bootstrap configuration
+  kubernetes.bootstrap = {
+    enable = true;
+
+    tasks = {
+      generate-kubeconfig = {
+        description = "Generate admin kubeconfig";
+        script = "${bootstrapScripts}/generate-admin-kubeconfig.sh";
+        args = [
+          "/etc/kubernetes/cluster-admin.kubeconfig"
+          caCert
+          certs.kube-admin.path
+          certs.kube-admin.keyPath
+          "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}"
+          cluster.name
+          "kubernetes-admin"
+        ];
+        after = [ "agenix.service" "kube-apiserver.service" ];
+      };
+
+      generate-cni-kubeconfig = {
+        description = "Generate CNI kubeconfig";
+        script = "${bootstrapScripts}/generate-cni-kubeconfig.sh";
+        args = [
+          "/var/lib/cni/net.d/calico-kubeconfig"
+          caCert
+          certs.calico-cni.path
+          certs.calico-cni.keyPath
+          "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}"
+          cluster.name
+          "calico-cni"
+        ];
+        after = [ "agenix.service" "kube-apiserver.service" ];
+      };
+
+      bootstrap-rbac = {
+        description = "Bootstrap Kubernetes RBAC rules";
+        script = "${bootstrapScripts}/bootstrap-rbac.sh";
+        args = [
+          "${pkgs.kubernetes}/bin/kubectl"
+          caCert
+          "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}"
+          "/etc/kubernetes/rbac"
+          "30"
+          "2"
+        ];
+        after = [ "k8s-bootstrap-generate-kubeconfig.service" ];
+        environment = {
+          KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
+        };
+        preStart = ''
+          # Copy RBAC manifests to standard location
+          mkdir -p /etc/kubernetes/rbac
+          cp -r ${./../../k8s/rbac}/* /etc/kubernetes/rbac/ 2>/dev/null || true
+        '';
+      };
+
+      calico-crds = {
+        description = "Install Calico CRDs";
+        script = "${bootstrapScripts}/apply-manifests.sh";
+        args = [
+          "${pkgs.kubernetes}/bin/kubectl"
+          "${calicoCrds}"
+        ];
+        after = [ "k8s-bootstrap-bootstrap-rbac.service" ];
+        environment = {
+          KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
+        };
+      };
+
+      calico-ip-pool = {
+        description = "Configure Calico VXLAN IP pool";
+        script = "${bootstrapScripts}/apply-manifests.sh";
+        args = [
+          "${pkgs.kubernetes}/bin/kubectl"
+          "${calicoIpPool}"
+        ];
+        after = [ "k8s-bootstrap-calico-crds.service" ];
+        environment = {
+          KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
+        };
+      };
+
+      calico-rbac = {
+        description = "Apply Calico RBAC";
+        script = "${bootstrapScripts}/apply-manifests.sh";
+        args = [
+          "${pkgs.kubernetes}/bin/kubectl"
+          "${./../../k8s/rbac/04-calico-cni.yaml}"
+          "${./../../k8s/rbac/05-calico-node.yaml}"
+        ];
+        after = [ "k8s-bootstrap-bootstrap-rbac.service" ];
+        environment = {
+          KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
+        };
+      };
+
+      calico-node = {
+        description = "Deploy Calico Node DaemonSet";
+        script = "${bootstrapScripts}/apply-manifests.sh";
+        args = [
+          "${pkgs.kubernetes}/bin/kubectl"
+          "${./../../k8s/addons/calico-node.yaml}"
+        ];
+        after = [ "k8s-bootstrap-calico-rbac.service" "k8s-bootstrap-calico-ip-pool.service" ];
+        environment = {
+          KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
+        };
+      };
     };
-    script = ''
-      mkdir -p /etc/kubernetes
-      cat > /etc/kubernetes/cluster-admin.kubeconfig <<EOF
-apiVersion: v1
-kind: Config
-clusters:
-- cluster:
-    certificate-authority: ${caCert}
-    server: https://${config.networking.hostName}:6443
-  name: ducksnest-k8s
-contexts:
-- context:
-    cluster: ducksnest-k8s
-    user: kubernetes-admin
-  name: default
-current-context: default
-users:
-- name: kubernetes-admin
-  user:
-    client-certificate: ${certs.kube-admin.path}
-    client-key: ${certs.kube-admin.keyPath}
-EOF
-      chmod 600 /etc/kubernetes/cluster-admin.kubeconfig
-      echo "Admin kubeconfig generated at /etc/kubernetes/cluster-admin.kubeconfig"
-    '';
-  };
-
-  systemd.services.bootstrap-rbac = {
-    description = "Bootstrap Kubernetes RBAC rules";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "generate-admin-kubeconfig.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      Environment = "KUBECONFIG=/etc/kubernetes/cluster-admin.kubeconfig";
-    };
-    script = ''
-      # Wait for API server to be ready
-      echo "Waiting for API server to be ready..."
-      for i in {1..30}; do
-        if ${pkgs.curl}/bin/curl -s --cacert ${caCert} https://${config.networking.hostName}:6443/healthz > /dev/null 2>&1; then
-          echo "API server is ready"
-          break
-        fi
-        echo "Attempt $i/30: API server not ready yet, waiting..."
-        sleep 2
-      done
-
-      # Apply bootstrap RBAC manifests
-      mkdir -p /etc/kubernetes/rbac
-
-      # Copy RBAC manifests to standard location
-      cp -r ${./../../k8s/rbac}/* /etc/kubernetes/rbac/ 2>/dev/null || true
-
-      if [ -d "/etc/kubernetes/rbac" ] && [ -n "$(ls -A /etc/kubernetes/rbac/*.yaml 2>/dev/null)" ]; then
-        echo "Applying RBAC manifests from /etc/kubernetes/rbac"
-        for f in /etc/kubernetes/rbac/*.yaml; do
-          if [ -f "$f" ]; then
-            echo "Applying $f"
-            ${pkgs.kubernetes}/bin/kubectl apply -f "$f" || echo "Warning: Failed to apply $f"
-          fi
-        done
-        echo "Bootstrap RBAC rules applied"
-      else
-        echo "Warning: No RBAC manifests found"
-      fi
-    '';
   };
 
   environment.variables.KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
