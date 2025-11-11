@@ -33,6 +33,22 @@ rules:
   - apiGroups: ["crd.projectcalico.org"]
     resources:
       - ipamconfigs
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+  - apiGroups: ["crd.projectcalico.org"]
+    resources:
+      - ipreservations
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups: ["crd.projectcalico.org"]
+    resources:
       - clusterinformations
       - ippools
     verbs:

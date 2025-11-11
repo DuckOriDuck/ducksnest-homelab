@@ -7,6 +7,7 @@
     ../../modules/common/security.nix
     ../../modules/certs/ca.nix
     ../../modules/roles/control-plane.nix
+    ../../environments/test.nix
   ];
 
   networking.hostName = "ducksnest-test-controlplane";
@@ -30,6 +31,11 @@
   networking.firewall.allowedUDPPorts = lib.mkAfter [
     8472  # VXLAN for Calico/Flannel if enabled
   ];
+
+  # Add host entries for all cluster nodes
+  networking.extraHosts = lib.concatStringsSep "\n" (
+    map (node: "${node.ipAddress} ${node.hostname}") config.cluster.workerNodes
+  );
 
   # Test VM: Set password for oriduckduck user
   users.users.oriduckduck = lib.mkForce {

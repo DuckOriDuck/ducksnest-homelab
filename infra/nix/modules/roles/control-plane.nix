@@ -5,6 +5,9 @@ let
   caCert = config.certToolkit.cas.k8s.ca.path;
   certs = config.certToolkit.cas.k8s.certs;
 
+  # Cluster configuration shorthand
+  cluster = config.cluster;
+
   # Bootstrap scripts path
   bootstrapScripts = ./../../k8s/scripts;
   calicoCniConfig = ./../../k8s/calico/10-calico.conflist;
@@ -13,10 +16,19 @@ let
     url = "https://raw.githubusercontent.com/projectcalico/calico/v3.29.3/manifests/crds.yaml";
     sha256 = "1620ee6f539de44bbb3ec4aa3c2687b5023d4ee30795b30663ab3423b0c5f5d5";
   };
+
+  # Custom calico package with calico-ipam binary
+  calicoWithIpam = pkgs.runCommand "calico-cni-with-ipam" {} ''
+    mkdir -p $out/bin
+    cp -r ${pkgs.calico-cni-plugin}/bin/* $out/bin/
+    # calico-ipam is the same binary as calico
+    cp $out/bin/calico $out/bin/calico-ipam
+  '';
 in
 {
   imports = [
     ../kubernetes-bootstrap.nix
+    ../cluster-config.nix
   ];
   virtualisation.containerd = {
     enable = true;
@@ -65,12 +77,12 @@ in
   ];
 
   services.kubernetes = {
-    masterAddress = config.networking.hostName;
-    clusterCidr = "10.244.0.0/16";
+    masterAddress = cluster.controlPlane.hostname;
+    clusterCidr = cluster.network.podCIDR;
 
     apiserver = {
       enable = true;
-      bindAddress = "0.0.0.0";
+      bindAddress = cluster.controlPlane.bindAddress;
       allowPrivileged = true;
       extraSANs = [
         config.networking.hostName
@@ -101,7 +113,7 @@ in
       tlsCertFile = certs.kube-controller-manager.path;
       tlsKeyFile = certs.kube-controller-manager.keyPath;
       kubeconfig = {
-        server = "https://${config.networking.hostName}:6443";
+        server = "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
         certFile = certs.kube-controller-manager.path;
         keyFile = certs.kube-controller-manager.keyPath;
@@ -111,13 +123,13 @@ in
     scheduler = {
       enable = true;
       kubeconfig = {
-        server = "https://${config.networking.hostName}:6443";
+        server = "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
         certFile = certs.kube-scheduler.path;
         keyFile = certs.kube-scheduler.keyPath;
       };
     };
-    
+
     kubelet = {
       enable = true;
       registerNode = true;
@@ -133,13 +145,13 @@ in
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
       kubeconfig = {
-        server = "https://${config.networking.hostName}:6443";
+        server = "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
         certFile = certs.kubelet.path;
         keyFile = certs.kubelet.keyPath;
       };
       cni = {
-        packages = [ pkgs.calico-cni-plugin ];
+        packages = [ calicoWithIpam ];
         config = [
           {
             type = "calico";
@@ -196,8 +208,8 @@ in
           caCert
           certs.kube-admin.path
           certs.kube-admin.keyPath
-          "https://${config.networking.hostName}:6443"
-          "ducksnest-k8s"
+          "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}"
+          cluster.name
           "kubernetes-admin"
         ];
         after = [ "agenix.service" "kube-apiserver.service" ];
@@ -211,18 +223,11 @@ in
           caCert
           certs.calico-cni.path
           certs.calico-cni.keyPath
-          "https://${config.networking.hostName}:6443"
-          "ducksnest-k8s"
+          "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}"
+          cluster.name
           "calico-cni"
         ];
         after = [ "agenix.service" "kube-apiserver.service" ];
-      };
-
-      setup-calico-ipam = {
-        description = "Create calico-ipam symlink";
-        script = "${bootstrapScripts}/setup-calico-ipam.sh";
-        args = [];
-        after = [ ];
       };
 
       bootstrap-rbac = {
@@ -231,7 +236,7 @@ in
         args = [
           "${pkgs.kubernetes}/bin/kubectl"
           caCert
-          "https://${config.networking.hostName}:6443"
+          "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}"
           "/etc/kubernetes/rbac"
           "30"
           "2"

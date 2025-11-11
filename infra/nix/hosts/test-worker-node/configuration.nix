@@ -7,6 +7,7 @@
     ../../modules/common/security.nix
     ../../modules/certs/ca.nix
     ../../modules/roles/worker-node.nix
+    ../../environments/test.nix
   ];
 
   networking.hostName = "ducksnest-test-worker-node";
@@ -35,11 +36,7 @@
   ];
 
   # Add host entry for control plane so DNS resolution works
-  networking.extraHosts = "10.100.0.2 ducksnest-test-controlplane";
-
-  # Override master address for test environment to use hostname
-  services.kubernetes.masterAddress = "ducksnest-test-controlplane";
-  services.kubernetes.kubelet.kubeconfig.server = lib.mkForce "https://ducksnest-test-controlplane:6443";
+  networking.extraHosts = "${config.cluster.controlPlane.ipAddress} ${config.cluster.controlPlane.hostname}";
 
   # Test VM: Set password for oriduckduck user
   users.users.oriduckduck = lib.mkForce {

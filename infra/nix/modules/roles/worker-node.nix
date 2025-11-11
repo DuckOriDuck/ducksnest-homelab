@@ -6,12 +6,24 @@ let
   certs = config.certToolkit.cas.k8s.certs;
   calicoCniConfig = ./../../k8s/calico/10-calico.conflist;
 
+  # Cluster configuration shorthand
+  cluster = config.cluster;
+
   # Bootstrap scripts path
   bootstrapScripts = ./../../k8s/scripts;
+
+  # Custom calico package with calico-ipam binary
+  calicoWithIpam = pkgs.runCommand "calico-cni-with-ipam" {} ''
+    mkdir -p $out/bin
+    cp -r ${pkgs.calico-cni-plugin}/bin/* $out/bin/
+    # calico-ipam is the same binary as calico
+    cp $out/bin/calico $out/bin/calico-ipam
+  '';
 in
 {
   imports = [
     ../kubernetes-bootstrap.nix
+    ../cluster-config.nix
   ];
   virtualisation.containerd = {
     enable = true;
@@ -46,11 +58,8 @@ in
   ];
 
   services.kubernetes = {
-    masterAddress =
-      if config.networking.hostName == "ducksnest-test-worker-node"
-      then "ducksnest-test-controlplane"
-      else "ducksnest-laptop-firebat";
-    clusterCidr = "10.244.0.0/16";
+    masterAddress = cluster.controlPlane.hostname;
+    clusterCidr = cluster.network.podCIDR;
 
     kubelet = {
       enable = true;
@@ -61,16 +70,13 @@ in
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
       kubeconfig = {
-        server =
-          if config.networking.hostName == "ducksnest-test-worker-node"
-          then "https://10.100.0.2:6443"
-          else "https://ducksnest-laptop-firebat:6443";
+        server = "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
         certFile = certs.kubelet.path;
         keyFile = certs.kubelet.keyPath;
       };
       cni = {
-        packages = [ pkgs.calico-cni-plugin ];
+        packages = [ calicoWithIpam ];
         config = [
           {
             type = "calico";
@@ -127,20 +133,11 @@ in
           caCert
           certs.calico-cni.path
           certs.calico-cni.keyPath
-          (if config.networking.hostName == "ducksnest-test-worker-node"
-           then "https://10.100.0.2:6443"
-           else "https://ducksnest-laptop-firebat:6443")
-          "ducksnest-k8s"
+          "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}"
+          cluster.name
           "calico-cni"
         ];
         after = [ "agenix.service" ];
-      };
-
-      setup-calico-ipam = {
-        description = "Create calico-ipam symlink";
-        script = "${bootstrapScripts}/setup-calico-ipam.sh";
-        args = [];
-        after = [ ];
       };
     };
   };

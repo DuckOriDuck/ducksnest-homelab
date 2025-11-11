@@ -94,6 +94,12 @@ done
 # Change to base directory for nix build
 cd "$BASE_DIR"
 
+# Clean SSH host keys for VM IPs
+section "Removing SSH host keys for VM IPs..."
+ssh-keygen -R 10.100.0.2 2>/dev/null || true
+ssh-keygen -R 10.100.0.3 2>/dev/null || true
+success "SSH host keys removed for 10.100.0.2 and 10.100.0.3"
+
 # Clean existing volumes if requested
 if [ "$CLEAN_VOLUMES" = true ]; then
     section "Cleaning existing VM disk volumes..."
