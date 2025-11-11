@@ -1,4 +1,5 @@
 # ducksnest-homelab
+<img width="512" height="512" alt="ducksnest" src="https://github.com/user-attachments/assets/7ee273a7-fb4c-4ec3-96c5-fb8ebc156646" />
 
 ## Documentation
 
