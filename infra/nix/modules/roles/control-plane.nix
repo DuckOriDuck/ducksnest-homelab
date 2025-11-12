@@ -238,10 +238,10 @@ in
           caCert
           "https://${cluster.network.apiServerAddress.controlPlane}:${toString cluster.controlPlane.apiServerPort}"
           "/etc/kubernetes/rbac"
-          "30"
-          "2"
+          "60"
+          "5"
         ];
-        after = [ "k8s-bootstrap-generate-kubeconfig.service" ];
+        after = [ "k8s-bootstrap-generate-kubeconfig.service" "kube-apiserver.service" ];
         environment = {
           KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
         };
