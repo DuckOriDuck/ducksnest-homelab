@@ -86,6 +86,8 @@ in
       allowPrivileged = true;
       extraSANs = [
         config.networking.hostName
+        "127.0.0.1"
+        "localhost"
         "kubernetes"
         "kubernetes.default"
         "kubernetes.default.svc"
