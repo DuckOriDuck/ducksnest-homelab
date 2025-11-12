@@ -16,7 +16,6 @@
 
   # Hostname
   networking.hostName = "ducksnest-controlplane";
-  networking.hostId = "ec2cp001";
 
   # AWS EC2 specific configuration
   ec2.hvm = true;

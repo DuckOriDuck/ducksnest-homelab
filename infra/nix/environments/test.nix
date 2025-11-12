@@ -12,6 +12,11 @@
       nodeNetwork = "10.100.0.0/24";
       dnsServiceIP = "10.0.0.10";
       apiServerIP = "10.0.0.1";
+
+      apiServerAddress = {
+        controlPlane = "10.100.0.2";
+        workers = "10.100.0.2";
+      };
     };
 
     controlPlane = {
