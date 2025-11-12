@@ -70,7 +70,7 @@ in
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
       kubeconfig = {
-        server = "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}";
+        server = "https://${cluster.network.apiServerAddress.workers}:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
         certFile = certs.kubelet.path;
         keyFile = certs.kubelet.keyPath;
@@ -133,7 +133,7 @@ in
           caCert
           certs.calico-cni.path
           certs.calico-cni.keyPath
-          "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}"
+          "https://${cluster.network.apiServerAddress.workers}:${toString cluster.controlPlane.apiServerPort}"
           cluster.name
           "calico-cni"
         ];

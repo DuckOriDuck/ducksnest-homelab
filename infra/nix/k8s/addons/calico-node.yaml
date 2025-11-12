@@ -52,6 +52,11 @@ spec:
                   fieldPath: spec.nodeName
             - name: CALICO_NETWORKING_BACKEND
               value: vxlan
+            # Felix config for CrossSubnet mode
+            - name: FELIX_IPINIPENABLED
+              value: "false"
+            - name: FELIX_VXLANENABLED
+              value: "true"
             - name: CLUSTER_TYPE
               value: "k8s"
             # IP Pool CIDR
@@ -59,6 +64,8 @@ spec:
               value: "10.244.0.0/16"
             - name: IP
               value: "autodetect"
+            - name: IP_AUTODETECTION_METHOD
+              value: "cidr=192.168.1.0/24"
             - name: CALICO_DISABLE_FILE_LOGGING
               value: "true"
             - name: FELIX_DEFAULTENDPOINTTOHOSTACTION
