@@ -7,16 +7,16 @@ set -euo pipefail
 HOSTNAME="${hostname}"
 AWS_REGION="${aws_region}"
 
-# Configure AWS CLI region
-aws configure set region "$AWS_REGION"
+# Setup temporary Nix shell with required tools
+export PATH="/run/current-system/sw/bin:$PATH"
 
-# Get agenix SSH private key from AWS Secrets Manager
+# Retrieve required secrets via a temporary nix-shell session, then continue in the base shell
 echo "Retrieving agenix SSH private key from Secrets Manager..."
-AGENIX_KEY=$(aws secretsmanager get-secret-value \
-    --secret-id "ducksnest-cp-ssh-4-TSLcert-secret" \
-    --region ap-northeast-2 \
-    --query 'SecretString' \
-    --output text | jq -r '.["ducksnest_cert_mng_key_ec2"]')
+AGENIX_KEY=$(nix-shell -p awscli2 jq --run "aws secretsmanager get-secret-value \
+    --secret-id ducksnest-cp-ssh-4-TSLcert-secret \
+    --region $AWS_REGION \
+    --query SecretString \
+    --output text | jq -r '.ducksnest_cert_mng_key_ec2'")
 
 if [ -z "$AGENIX_KEY" ] || [ "$AGENIX_KEY" = "null" ]; then
     echo "ERROR: Failed to retrieve agenix SSH private key"
@@ -26,16 +26,27 @@ fi
 # Install agenix SSH private key for certificate decryption
 echo "Installing agenix SSH private key..."
 mkdir -p /root/.ssh
-echo "$AGENIX_KEY" > /root/.ssh/ducksnest_cert_mng_key
+echo "$AGENIX_KEY" | base64 -d > /root/.ssh/ducksnest_cert_mng_key
 chmod 600 /root/.ssh/ducksnest_cert_mng_key
 chown root:root /root/.ssh/ducksnest_cert_mng_key
 echo "Agenix SSH key installed successfully"
 
-# Get Tailscale auth key from AWS Secrets Manager and connect
+NIX_CONFIG=$'experimental-features = nix-command flakes
+substituters = s3://ducksnest-nix-cache?region=ap-northeast-2
+require-sigs = false
+narinfo-cache-negative-ttl = 0' \
+  sudo nixos-rebuild switch \
+    --flake 'github:DuckOriDuck/ducksnest-homelab/nix/network-design?dir=infra/nix#ec2-controlplane' \
+    --option builders '' \
+    --option fallback false \
+    --refresh
+
+# Get Tailscale auth key from AWS Secrets Manager
 echo "Retrieving Tailscale auth key from Secrets Manager..."
 AUTH_KEY=$(aws secretsmanager get-secret-value \
-    --secret-id "tailscale-cp-secret" \
-    --query 'SecretString' \
+    --secret-id tailscale-cp-secret \
+    --region $AWS_REGION \
+    --query SecretString \
     --output text | jq -r '.["tailscale-cp-key"]')
 
 if [ -z "$AUTH_KEY" ] || [ "$AUTH_KEY" = "null" ]; then
@@ -43,18 +54,7 @@ if [ -z "$AUTH_KEY" ] || [ "$AUTH_KEY" = "null" ]; then
     exit 1
 fi
 
-NIX_CONFIG=$'experimental-features = nix-command flakes\nsubstituters = s3://another-nix-cache-test?region=ap-northeast-2\nrequire-sigs = false\nnarinfo-cache-negative-ttl = 0' \
-sudo nixos-rebuild switch \
-  --flake 'github:DuckOriDuck/ducksnest-homelab?dir=infra/nix#ec2-controlplane' \
-  --option builders '' \
-  --option fallback false \
-  --refresh
-
-# Connect to Tailscale
-tailscale up \
-    --authkey="$AUTH_KEY" \
-    --accept-routes \
-    --accept-dns
+tailscale up --authkey="$AUTH_KEY" --accept-routes --accept-dns
 
 # Wait for connection and get IP
 sleep 10

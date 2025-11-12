@@ -27,7 +27,7 @@
       provider = "calico";
       calico = {
         vxlanMode = "CrossSubnet";
-        ipAutodetectionMethod = "cidr=192.168.1.0/24";
+        ipAutodetectionMethod = "interface=tailscale0";
       };
     };
   };
