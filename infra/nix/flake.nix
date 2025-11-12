@@ -30,8 +30,8 @@
       k8sRoles = {
         laptop-old = "worker";
         laptop-ultra = "worker";
-        laptop-firebat = "control-plane";
-        ec2-controlplane = "worker";
+        laptop-firebat = "worker";
+        ec2-controlplane = "control-plane";
         test-controlplane = "control-plane";
         test-worker-node = "worker";
       };

@@ -31,7 +31,7 @@
     cni = {
       provider = "calico";
       calico = {
-        vxlanEnabled = true;
+        vxlanMode = "Always";
         ipAutodetectionMethod = "first-found";
       };
     };

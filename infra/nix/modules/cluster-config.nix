@@ -50,6 +50,25 @@
         description = "API server service IP";
         default = "10.0.0.1";
       };
+
+      apiServerAddress = lib.mkOption {
+        type = lib.types.nullOr (lib.types.submodule {
+          options = {
+            controlPlane = lib.mkOption {
+              type = lib.types.str;
+              description = "API server address for control plane components";
+              example = "127.0.0.1";
+            };
+            workers = lib.mkOption {
+              type = lib.types.str;
+              description = "API server address for worker nodes";
+              example = "ducksnest-controlplane";
+            };
+          };
+        });
+        description = "API server addresses for different node types";
+        default = null;
+      };
     };
 
     controlPlane = {
@@ -108,10 +127,16 @@
       };
 
       calico = {
-        vxlanEnabled = lib.mkOption {
+        vxlanMode = lib.mkOption {
+          type = lib.types.enum [ "Always" "CrossSubnet" "Never" ];
+          description = "VXLAN mode for Calico: Always, CrossSubnet, or Never";
+          default = "Always";
+        };
+
+        ipipEnabled = lib.mkOption {
           type = lib.types.bool;
-          description = "Enable VXLAN mode for Calico";
-          default = true;
+          description = "Enable IPIP mode for Calico";
+          default = false;
         };
 
         ipAutodetectionMethod = lib.mkOption {
