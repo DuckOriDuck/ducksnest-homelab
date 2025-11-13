@@ -45,7 +45,7 @@ narinfo-cache-negative-ttl = 0' \
 echo "Retrieving Tailscale auth key from Secrets Manager..."
 AUTH_KEY=$(aws secretsmanager get-secret-value \
     --secret-id tailscale-cp-secret \
-    --region $AWS_REGION \
+    --region ap-northeast-2 \
     --query SecretString \
     --output text | jq -r '.["tailscale-cp-key"]')
 
