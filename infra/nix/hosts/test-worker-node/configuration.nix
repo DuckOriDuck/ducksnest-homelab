@@ -5,7 +5,6 @@
     ./hardware-configuration.nix
     ../../modules/common/base.nix
     ../../modules/common/security.nix
-    ../../modules/certs/ca.nix
     ../../modules/roles/worker-node.nix
     ../../environments/test.nix
   ];

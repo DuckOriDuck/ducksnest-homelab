@@ -7,7 +7,6 @@
     ../../modules/common/base.nix
     ../../modules/common/security.nix
     ../../modules/common/users.nix
-    ../../modules/certs/ca.nix
     ../../modules/boot/boot-uefi.nix
     ../../modules/roles/tailscale-client.nix
     ../../environments/production.nix

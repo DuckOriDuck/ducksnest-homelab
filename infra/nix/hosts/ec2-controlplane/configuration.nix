@@ -6,7 +6,6 @@
     ../../modules/common/base.nix
     ../../modules/common/security.nix
     ../../modules/common/users.nix
-    ../../modules/certs/ca.nix
     ../../modules/roles/tailscale-client.nix
     ../../environments/production.nix
     (if k8sRole == "control-plane"

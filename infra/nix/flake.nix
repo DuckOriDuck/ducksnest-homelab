@@ -9,13 +9,9 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     agenix.url = "github:ryantm/agenix";
-    k8nix-cert-management = {
-      url = "gitlab:luxzeitlos/k8nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-generators, agenix, k8nix-cert-management }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-generators, agenix }:
     let
 
       hostSystems = {
@@ -42,26 +38,45 @@
         })
       ];
 
+
+      certToolkitModule = import ./modules/cert-toolkit;
+      
+      mkRecreateCertsScript = { nixosConfigurations, system }: let
+        pkgs = import nixpkgs { inherit system; };
+        lib = nixpkgs.lib;
+      in pkgs.writeShellScriptBin "recreate-certs" ''
+        ${lib.pipe nixosConfigurations [
+          lib.attrValues
+          (map (cfg: lib.attrValues cfg.config.certToolkit.cas))
+          lib.concatLists
+          (map (ca: [ca.ca] ++ (lib.attrValues ca.certs)))
+          lib.concatLists
+          (map (cert: cert.createScript))
+          (lib.strings.concatStringsSep "\n")
+        ]}
+      '';
+
+      mkRecreateCertsApp = args: {
+        type = "app";
+        program = "${mkRecreateCertsScript args}/bin/recreate-certs";
+      };
+
       mkNixosConfig = hostname: system: role:
         nixpkgs.lib.nixosSystem {
           inherit system;
 
           specialArgs = {
-            inherit agenix k8nix-cert-management self;
+            inherit agenix self;
             k8sRole = role;
+            flakeRoot = self;
           };
 
           modules = [
             ({ config, pkgs, ... }: {
               nixpkgs.overlays = overlays;
             })
-
             agenix.nixosModules.default
-
-            k8nix-cert-management.nixosModules.certToolkit
-
-            ./modules/certs/ca.nix
-
+            certToolkitModule
             ./hosts/${hostname}/configuration.nix
           ];
         };
@@ -77,36 +92,6 @@
         test-worker-node  = mkNixosConfig "test-worker-node"  hostSystems.test-worker-node k8sRoles.test-worker-node;
       };
 
-      # Certificate management apps
-      apps.x86_64-linux = {
-        "certs-recreate" = {
-          type = "app";
-          program = "${(k8nix-cert-management.mkRecreateCertsApp {
-            system = "x86_64-linux";
-            nixosConfigurations = self.nixosConfigurations;
-            caModules = [ ./modules/certs/ca.nix ];
-          }).program}";
-          meta = {
-            description = "Regenerate TLS certificates for Kubernetes cluster";
-          };
-        };
-
-        "certs-recreate-test" = {
-          type = "app";
-          program = "${(k8nix-cert-management.mkRecreateCertsApp {
-            system = "x86_64-linux";
-            nixosConfigurations = {
-              test-controlplane = self.nixosConfigurations.test-controlplane;
-              test-worker-node = self.nixosConfigurations.test-worker-node;
-            };
-            caModules = [ ./modules/certs/ca.nix ];
-          }).program}";
-          meta = {
-            description = "Regenerate TLS certificates for test environment only";
-          };
-        };
-      };
-
       # Default packages for each system
       packages = {
         x86_64-linux.default = self.nixosConfigurations.laptop-ultra.config.system.build.toplevel;
@@ -117,5 +102,23 @@
         x86_64-linux.test-controlplane = self.nixosConfigurations.test-controlplane.config.system.build.toplevel;
         x86_64-linux.test-worker-node = self.nixosConfigurations.test-worker-node.config.system.build.toplevel;
       };
+
+      # Certificate management apps
+      apps.x86_64-linux = {
+        "certs-recreate" = mkRecreateCertsApp {
+          system = "x86_64-linux";
+          nixosConfigurations = self.nixosConfigurations;
+        };
+
+        "certs-recreate-test" = mkRecreateCertsApp {
+          system = "x86_64-linux";
+          nixosConfigurations = {
+            test-controlplane = self.nixosConfigurations.test-controlplane;
+            test-worker-node = self.nixosConfigurations.test-worker-node;
+          };
+        };
+      };
+
+      
     };
 }

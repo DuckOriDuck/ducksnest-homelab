@@ -1,6 +1,7 @@
-{ self, config, lib, pkgs, ... }@args:
+{ config, lib, pkgs, ... }@args:
 let
   ageIntegration = args.ageIntegration or true;
+  flakeRoot = args.flakeRoot or ./../../../..;
   hostName = config.networking.hostName or "";
   cfg = config.certToolkit;
   mkRecipientFile = keys: pkgs.writeText "recipients" (builtins.concatStringsSep "\n" keys);
@@ -130,25 +131,32 @@ in {
                     id = "derived-${config.networking.hostName}-${caName}-${name}";
                     relativePath    = "${cfg.dir}/derived/${config.networking.hostName}/${caName}-${name}.crt";
                     relativeAgePath = "${cfg.dir}/derived/${config.networking.hostName}/${caName}-${name}.key.age";
-                    path = builtins.path { path = "${self.outPath}/${cfg.dir}/derived/${config.networking.hostName}/${caName}-${name}.crt"; };
-                    agePath = builtins.path { path = "${self.outPath}/${cfg.dir}/derived/${config.networking.hostName}/${caName}-${name}.key.age"; };
+                    path = builtins.path { path = "${flakeRoot}/${cfg.dir}/derived/${config.networking.hostName}/${caName}-${name}.crt"; };
+                    agePath = builtins.path { path = "${flakeRoot}/${cfg.dir}/derived/${config.networking.hostName}/${caName}-${name}.key.age"; };
                     csr = mkCsr scfg;
                     csrFile = builtins.toFile "csr-${config.networking.hostName or ""}-${caName}-${name}.json" (builtins.toJSON scfg.csr);
                     keyPath = config.age.secrets."certtoolkit-${id}".path;
 
                     createScript = ''
+                      set -e
                       echo "create ${scfg.id}"
                       keyfile=$(${pkgs.mktemp}/bin/mktemp)
                       cat ${caSubmodule.config.ca.relativeAgePath} \
                         | ${pkgs.rage}/bin/rage -i ${cfg.userAgeIdentity} -d \
                         > $keyfile
-                      
+
                       cert=$(${pkgs.cfssl}/bin/cfssl gencert \
                         -ca file:${caSubmodule.config.ca.relativePath} \
                         -ca-key file:$keyfile \
-                        ${scfg.csrFile} 2>/dev/null)
+                        ${scfg.csrFile})
 
-                      mkdir -p $(dirname ${scfg.relativePath})      
+                      if [ -z "$cert" ]; then
+                        echo "Error: Failed to generate certificate for ${scfg.id}"
+                        rm -f $keyfile
+                        exit 1
+                      fi
+
+                      mkdir -p $(dirname ${scfg.relativePath})
                       echo $cert | ${pkgs.jq}/bin/jq -r ".key" \
                       | ${pkgs.rage}/bin/rage \
                         -R ${mkRecipientFile cfg.userAgeKeys} \
@@ -158,6 +166,9 @@ in {
 
                       echo $cert | ${pkgs.jq}/bin/jq -r ".cert" \
                         > ${scfg.relativePath}
+
+                      rm -f $keyfile
+                      echo "Successfully created ${scfg.id}"
                     '';
                   } // (mkDeivedCertConfig 1007 caSubmodule.config.certDefaults);
                 })
@@ -169,22 +180,34 @@ in {
                 options = certOptions;
                 config = {
                   createScript = ''
-                    echo ca: ${caName}
+                    set -e
+                    echo "CA: ${caName}"
                     if [ -e "${caCertSubmodule.config.relativeAgePath}" ]; then
-                      echo "cert exists, trying to reencrypt the key"
+                      echo "CA cert exists, trying to reencrypt the key"
                       tmpfile=$(mktemp)
                       cat ${caCertSubmodule.config.relativeAgePath} \
                         | ${pkgs.rage}/bin/rage -i ${cfg.userAgeIdentity} -d \
                         | ${pkgs.rage}/bin/rage -R ${mkRecipientFile cfg.userAgeKeys} -e -o $tmpfile
                       mv $tmpfile ${caCertSubmodule.config.relativeAgePath}
+                      echo "CA key successfully re-encrypted: ${caName}"
                     else
-                      echo "cert does not exist, create it"
+                      echo "CA cert does not exist, creating new CA: ${caName}"
                       mkdir -p $(dirname "${caCertSubmodule.config.relativePath}")
-                      cert=$(${pkgs.cfssl}/bin/cfssl gencert -initca ${caCertSubmodule.config.csrFile} 2>/dev/null)
+
+                      cert=$(${pkgs.cfssl}/bin/cfssl gencert -initca ${caCertSubmodule.config.csrFile})
+
+                      if [ -z "$cert" ]; then
+                        echo "Error: Failed to generate CA certificate for ${caName}"
+                        exit 1
+                      fi
+
                       echo $cert | ${pkgs.jq}/bin/jq -r ".key" \
                       | ${pkgs.rage}/bin/rage -R ${mkRecipientFile cfg.userAgeKeys} -e -o ${caCertSubmodule.config.relativeAgePath}
+
                       echo $cert | ${pkgs.jq}/bin/jq -r ".cert" \
                         > ${caCertSubmodule.config.relativePath}
+
+                      echo "CA successfully created: ${caName}"
                     fi
                   '';
                 } // (mkDeivedCertConfig 1007 cfg.caDefaults);
@@ -197,7 +220,7 @@ in {
             ca = {
               relativePath = "${cfg.dir}/ca/${caName}.crt";
               relativeAgePath = "${cfg.dir}/ca/${caName}.key.age";
-              path = builtins.path { path = "${self.outPath}/${cfg.dir}/ca/${caName}.crt"; };
+              path = builtins.path { path = "${flakeRoot}/${cfg.dir}/ca/${caName}.crt"; };
               hosts = lib.mkDefault [];
               names = lib.mkDefault {};
               csr = mkCsr caCfg;
