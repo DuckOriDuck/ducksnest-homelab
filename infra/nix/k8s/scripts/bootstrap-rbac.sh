@@ -20,16 +20,50 @@ RBAC_MANIFESTS_DIR="${4:?Missing rbac_manifests_dir}"
 MAX_RETRIES="${5:-30}"
 RETRY_INTERVAL="${6:-2}"
 
+# Set KUBECONFIG if not already set
+if [ -z "${KUBECONFIG:-}" ]; then
+  # Default location for admin kubeconfig
+  export KUBECONFIG="/etc/kubernetes/cluster-admin.kubeconfig"
+  echo "KUBECONFIG not set, using default: $KUBECONFIG"
+fi
+
+# Verify kubeconfig exists
+if [ ! -f "$KUBECONFIG" ]; then
+  echo "Error: KUBECONFIG file not found at: $KUBECONFIG"
+  exit 1
+fi
+
 # Wait for API server to be ready
 echo "Waiting for API server to be ready..."
+echo "Using KUBECONFIG: $KUBECONFIG"
+echo "Testing connectivity to: $SERVER_ADDRESS"
+
 for i in $(seq 1 "$MAX_RETRIES"); do
-  if curl -s --cacert "$CA_CERT" "${SERVER_ADDRESS}/healthz" > /dev/null 2>&1; then
-    echo "API server is ready"
+  # Use kubectl to test API server readiness (more reliable than curl)
+  if "$KUBECTL" cluster-info >/dev/null 2>&1; then
+    echo "API server is ready!"
     break
   fi
-  echo "Attempt $i/$MAX_RETRIES: API server not ready yet, waiting..."
+
+  # Debug output every 10 attempts
+  if [ $((i % 10)) -eq 1 ]; then
+    echo "Debug info (attempt $i):"
+    # Check if port is open
+    if nc -zv 127.0.0.1 6443 2>&1 | grep -q succeeded; then
+      echo "  - Port 6443 is open"
+    else
+      echo "  - Port 6443 is NOT open"
+    fi
+    # Try curl
+    CURL_RESULT=$(curl -sk "$SERVER_ADDRESS/healthz" 2>&1 || echo "curl_failed")
+    echo "  - Curl result: $CURL_RESULT"
+  fi
+
+  echo "Attempt $i/$MAX_RETRIES: API server not ready yet, waiting $RETRY_INTERVAL seconds..."
   if [ "$i" -eq "$MAX_RETRIES" ]; then
     echo "Error: API server did not become ready after $MAX_RETRIES attempts"
+    echo "Final debug:"
+    "$KUBECTL" cluster-info 2>&1 || true
     exit 1
   fi
   sleep "$RETRY_INTERVAL"

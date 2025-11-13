@@ -1,16 +1,22 @@
-{ lib, config, k8sRole ? "worker", ... }:
+{ lib, config, pkgs, k8sRole ? "worker", ... }@args:
 {
+  # Import cert-toolkit module
+  imports = [
+    ./cert-toolkit.nix
+  ];
+
+  # CA Configuration
   certToolkit.dir = "./secrets/certs";
 
-  # 인증서 생성 시 사용할 개인 비밀키
+
   certToolkit.userAgeIdentity = "$HOME/.ssh/ducksnest_cert_mng_key";
 
-  # 인증서를 암호화할 공개키 (운영자)
+
   certToolkit.userAgeKeys = [
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBUJcgORZ6omxkAFFsHSvqYjrU/vEfwzMcw3TxjRmXHH operator@ducksnest"
   ];
 
-  # 각 서버의 호스트 공개키 경로 (디렉토리 구조 + 커스텀 파일명)
+
   certToolkit.owningHostKey =
     let
       keyFileName = {
@@ -24,7 +30,7 @@
     in
       "./ssh-host-keys/${config.networking.hostName}/${keyFileName}";
 
-  # Default configuration (required by cert-toolkit)
+
   certToolkit.defaults = {
     key = {
       algo = "rsa";
@@ -41,10 +47,10 @@
     };
   };
 
-  # Certificate Authority
+
   certToolkit.cas.k8s.ca = {
     usages = [ "signing" ];
-    expiry = "876000h"; # 100 years
+    expiry = "876000h";
     commonName = "DucksNest Kubernetes Cluster CA";
   };
 

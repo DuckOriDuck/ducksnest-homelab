@@ -36,9 +36,9 @@ spec:
           image: calico/node:v3.29.3
           env:
             # Kubernetes API server connection
-            # Use control plane IP instead of Service IP (10.0.0.1) because hostNetwork=true
+            # Use localhost for control plane, Tailscale hostname for workers
             - name: KUBERNETES_SERVICE_HOST
-              value: "10.100.0.2"
+              value: "ducksnest-controlplane"
             - name: KUBERNETES_SERVICE_PORT
               value: "6443"
             # Calico datastore config
@@ -52,6 +52,11 @@ spec:
                   fieldPath: spec.nodeName
             - name: CALICO_NETWORKING_BACKEND
               value: vxlan
+            # Felix config for CrossSubnet mode
+            - name: FELIX_IPINIPENABLED
+              value: "false"
+            - name: FELIX_VXLANENABLED
+              value: "true"
             - name: CLUSTER_TYPE
               value: "k8s"
             # IP Pool CIDR
@@ -59,6 +64,8 @@ spec:
               value: "10.244.0.0/16"
             - name: IP
               value: "autodetect"
+            - name: IP_AUTODETECTION_METHOD
+              value: "interface=tailscale0"
             - name: CALICO_DISABLE_FILE_LOGGING
               value: "true"
             - name: FELIX_DEFAULTENDPOINTTOHOSTACTION

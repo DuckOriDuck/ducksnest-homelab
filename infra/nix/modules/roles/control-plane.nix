@@ -86,6 +86,8 @@ in
       allowPrivileged = true;
       extraSANs = [
         config.networking.hostName
+        "127.0.0.1"
+        "localhost"
         "kubernetes"
         "kubernetes.default"
         "kubernetes.default.svc"
@@ -113,7 +115,7 @@ in
       tlsCertFile = certs.kube-controller-manager.path;
       tlsKeyFile = certs.kube-controller-manager.keyPath;
       kubeconfig = {
-        server = "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}";
+        server = "https://${cluster.network.apiServerAddress.controlPlane}:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
         certFile = certs.kube-controller-manager.path;
         keyFile = certs.kube-controller-manager.keyPath;
@@ -123,7 +125,7 @@ in
     scheduler = {
       enable = true;
       kubeconfig = {
-        server = "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}";
+        server = "https://127.0.0.1:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
         certFile = certs.kube-scheduler.path;
         keyFile = certs.kube-scheduler.keyPath;
@@ -145,7 +147,7 @@ in
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
       kubeconfig = {
-        server = "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}";
+        server = "https://${cluster.network.apiServerAddress.controlPlane}:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
         certFile = certs.kubelet.path;
         keyFile = certs.kubelet.keyPath;
@@ -208,7 +210,7 @@ in
           caCert
           certs.kube-admin.path
           certs.kube-admin.keyPath
-          "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}"
+          "https://${cluster.network.apiServerAddress.controlPlane}:${toString cluster.controlPlane.apiServerPort}"
           cluster.name
           "kubernetes-admin"
         ];
@@ -223,7 +225,7 @@ in
           caCert
           certs.calico-cni.path
           certs.calico-cni.keyPath
-          "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}"
+          "https://${cluster.network.apiServerAddress.controlPlane}:${toString cluster.controlPlane.apiServerPort}"
           cluster.name
           "calico-cni"
         ];
@@ -236,12 +238,12 @@ in
         args = [
           "${pkgs.kubernetes}/bin/kubectl"
           caCert
-          "https://${cluster.controlPlane.hostname}:${toString cluster.controlPlane.apiServerPort}"
+          "https://${cluster.network.apiServerAddress.controlPlane}:${toString cluster.controlPlane.apiServerPort}"
           "/etc/kubernetes/rbac"
-          "30"
-          "2"
+          "60"
+          "5"
         ];
-        after = [ "k8s-bootstrap-generate-kubeconfig.service" ];
+        after = [ "k8s-bootstrap-generate-kubeconfig.service" "kube-apiserver.service" ];
         environment = {
           KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
         };
