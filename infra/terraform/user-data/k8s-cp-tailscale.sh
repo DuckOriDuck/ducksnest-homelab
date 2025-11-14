@@ -65,7 +65,7 @@ substituters = s3://ducksnest-nix-cache?region=ap-northeast-2
 require-sigs = false
 narinfo-cache-negative-ttl = 0' \
   sudo nixos-rebuild switch \
-    --flake 'github:DuckOriDuck/ducksnest-homelab/nix/network-design?dir=infra/nix#ec2-controlplane' \
+    --flake 'github:DuckOriDuck/ducksnest-homelab?dir=infra/nix#ec2-controlplane' \
     --option builders '' \
     --option fallback false \
     --refresh
