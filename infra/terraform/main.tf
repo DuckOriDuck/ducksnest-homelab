@@ -30,7 +30,7 @@ data "aws_ami" "nixos_custom" {
 
   filter {
     name   = "name"
-    values = ["NixOS-25.05-updated-kernel-image"]
+    values = ["NixOS-25.05-tailscaled-ver2"]
   }
 
   filter {
@@ -55,7 +55,7 @@ resource "aws_instance" "k8s_control_plane" {
 
   root_block_device {
     volume_type = "gp3"
-    volume_size = 20
+    volume_size = 30
     encrypted   = true
   }
 
