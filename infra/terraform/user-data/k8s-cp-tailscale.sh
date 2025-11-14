@@ -45,7 +45,7 @@ if [ -z "$AUTH_KEY" ] || [ "$AUTH_KEY" = "null" ]; then
     exit 1
 fi
 
-tailscale up --authkey="$AUTH_KEY" --accept-routes --accept-dns
+tailscale up --authkey="$AUTH_KEY" --hostname=ducksnest-controlplane --accept-routes --accept-dns
 
 # Wait for connection and get IP
 TAILSCALE_IP=$(tailscale ip -4)
