@@ -105,6 +105,7 @@ rules:
       - blockaffinities
       - caliconodestatuses
       - tiers
+      - ipreservations
     verbs:
       - get
       - list
@@ -122,6 +123,7 @@ rules:
       - ippools
       - felixconfigurations
       - clusterinformations
+      - tiers
     verbs:
       - create
       - update
@@ -139,6 +141,7 @@ rules:
       - blockaffinities
       - ipamblocks
       - ipamhandles
+      - ipreservations
     verbs:
       - get
       - list
@@ -150,6 +153,8 @@ rules:
       - ipamconfigs
     verbs:
       - get
+      - create
+      - update
   # Block affinities must also be watchable by confd for route aggregation.
   - apiGroups: ["crd.projectcalico.org"]
     resources:
