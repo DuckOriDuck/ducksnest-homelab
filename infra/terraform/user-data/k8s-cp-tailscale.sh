@@ -31,15 +31,6 @@ chmod 600 /root/.ssh/ducksnest_cert_mng_key
 chown root:root /root/.ssh/ducksnest_cert_mng_key
 echo "Agenix SSH key installed successfully"
 
-NIX_CONFIG=$'experimental-features = nix-command flakes
-substituters = s3://ducksnest-nix-cache?region=ap-northeast-2
-require-sigs = false
-narinfo-cache-negative-ttl = 0' \
-  sudo nixos-rebuild switch \
-    --flake 'github:DuckOriDuck/ducksnest-homelab/nix/network-design?dir=infra/nix#ec2-controlplane' \
-    --option builders '' \
-    --option fallback false \
-    --refresh
 
 # Get Tailscale auth key from AWS Secrets Manager
 echo "Retrieving Tailscale auth key from Secrets Manager..."
@@ -57,25 +48,8 @@ fi
 tailscale up --authkey="$AUTH_KEY" --accept-routes --accept-dns
 
 # Wait for connection and get IP
-sleep 10
 TAILSCALE_IP=$(tailscale ip -4)
 echo "Tailscale connected with IP: $TAILSCALE_IP"
-
-# Wait for Kubernetes API server to be ready
-echo "Waiting for Kubernetes API server to be ready..."
-while ! kubectl get nodes >/dev/null 2>&1; do
-    echo "API server not ready, waiting 10 seconds..."
-    sleep 10
-done
-
-echo "Kubernetes API server is ready!"
-
-# Configure MTU for Tailscale compatibility
-echo "Configuring Calico MTU for Tailscale..."
-kubectl patch installation default --type merge -p '{"spec":{"calicoNetwork":{"mtu":1280}}}'
-
-echo "Tailscale MTU optimization completed!"
-
 
 # Create status file
 cat > /tmp/tailscale-cp-info.json << EOF
@@ -86,7 +60,12 @@ cat > /tmp/tailscale-cp-info.json << EOF
 }
 EOF
 
-# Completion marker
-touch /var/lib/cloud/instance/boot-finished
-echo "NixOS Control Plane with Tailscale initialization completed at $(date)" > /var/log/init-complete.log
-echo "Control Plane Tailscale IP: $TAILSCALE_IP"
+NIX_CONFIG=$'experimental-features = nix-command flakes
+substituters = s3://ducksnest-nix-cache?region=ap-northeast-2
+require-sigs = false
+narinfo-cache-negative-ttl = 0' \
+  sudo nixos-rebuild switch \
+    --flake 'github:DuckOriDuck/ducksnest-homelab/nix/network-design?dir=infra/nix#ec2-controlplane' \
+    --option builders '' \
+    --option fallback false \
+    --refresh
