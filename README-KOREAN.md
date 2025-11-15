@@ -168,6 +168,8 @@ Control Plane이 EC2에 자리 잡고 있기 때문에 시도해볼 수 있는 �
   
 - **해결 방안**  
   - [NixCon 2025 - Kubernetes on Nix](https://www.youtube.com/watch?v=leR6m2plirs&t=967s), [gitlab: Lukas- K8Nix](https://gitlab.com/luxzeitlos/k8nix)에서 소개된 TLS 관리 방법을 참고하여 자체 자동화 파이프라인 nix 모듈을 구축했습니다.
+<img width="1307" height="511" alt="certtoolkit2" src="https://github.com/user-attachments/assets/7c976159-e9d0-413c-917d-271ff3d2d813" />
+
   - 각 노드마다 **SSH 키 페어(비대칭 키)**를 생성하여:
     - **Public key** → GitHub 리포지토리에 저장  
     - **Private key** → 각 노드의 로컬 NixOS 파일시스템에 저장
