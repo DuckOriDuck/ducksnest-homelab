@@ -150,6 +150,8 @@ The following are automatically bootstrapped at boot time:
 
 - **Solution**
   - Built a custom automation pipeline Nix module, referencing the TLS management approach introduced in [NixCon 2025 - Kubernetes on Nix](https://www.youtube.com/watch?v=leR6m2plirs&t=967s) and [gitlab: Lukas - K8Nix](https://gitlab.com/luxzeitlos/k8nix).
+  <img width="1307" height="511" alt="certtoolkit2" src="https://github.com/user-attachments/assets/1b04b42e-0698-4515-951a-4621b9560c63" />
+
   - Generate an **SSH key pair (asymmetric keys)** for each node:
     - **Public key** → Stored in GitHub repository
     - **Private key** → Stored in local NixOS filesystem on each node
