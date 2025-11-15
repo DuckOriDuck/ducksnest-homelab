@@ -2,7 +2,7 @@
 <img width="512" height="512" alt="ducksnest" src="https://github.com/user-attachments/assets/7ee273a7-fb4c-4ec3-96c5-fb8ebc156646" />
 
 ## Documentation
-
+- **[한국어 문서](/README-KOREAN.md)** - 한국어 문서는 여기에서 보시면 됩니다
 - **[Infrastructure Overview](infra/README.md)** - Terraform and NixOS infrastructure documentation
 - **[NixOS Architecture](infra/nix/README.md)** - Detailed NixOS configuration and Kubernetes setup
 
@@ -20,10 +20,10 @@
   - [Topology Summary (Assuming EC2 as Control Plane)](#topology-summary-assuming-ec2-as-control-plane)
   - [Network & CIDR Map](#network--cidr-map)
 - [Current Progress](#current-progress)
-  - [EC2 Provisioning Problem – Fixed](#ec2-provisioning-problem--fixed)
   - [Kubernetes the Nix Way](#kubernetes-the-nix-way)
-  - [WN Auto Join](#wn-auto-join)
-  - [Test Environment Configuration With QEMU](#test-environment-configuration-with-qemu)
+  - [EC2 Provisioning Problem – Fixed](#ec2-provisioning-problem--fixed)
+  - [Calico Installation Problem – Fixed](#calico-installation-problem--fixed)
+  - [CA/TLS Management Problem – Fixed](#catls-management-problem--fixed)
 - [Current Issues](#current-issues)
 
 ## Introduction
@@ -37,6 +37,14 @@ I plan to deploy my personal blog and service portfolios on this cluster.
 3. To have fun -*Homo Ludens*: humans are playful by nature. Through this project, I want to make learning and building systems more enjoyable and creative.
 
 ### Master Goal
+My ultimate goal is to build a complete automated deployment pipeline, a highly-available database, and a DR (Disaster Recovery) environment where EC2 automatically provisions replacement worker nodes when local machines go down. I also want to maximize the advantages of this hybrid cluster by combining cloud and on-premises resources, such as storing logs and database snapshots in S3, to complete my own homelab.
+
+With the Control Plane situated on EC2, there are many expansion opportunities to explore, and I'm excited about the future development process.
+
+#### On High-Availability Control Plane
+I chose Kubernetes because it allows me to manage multiple nodes consistently from a central location and has excellent compatibility with various automation add-ons. However, given that my environment is not large-scale and doesn't have many actual users, I determined that configuring a high-availability Control Plane at this stage would be excessive in terms of both cost and operational burden. Therefore, a single Control Plane is sufficient for now, and I'm not currently considering a high-availability setup.
+
+However, if I have the resources in the future, I'm open to expanding both the Control Plane and Worker Nodes by adding on-premises equipment. For now, I'll proceed with a single Control Plane-based setup, but I'll design the architecture to be easily expandable at any time.
 
 ## Tech Stacks
 
@@ -89,25 +97,88 @@ I plan to deploy my personal blog and service portfolios on this cluster.
 
 
 ## Current Progress
-### EC2 Provisioning Problem – Fixed  
-- **Problem:**  
-  - Building NixOS from scratch on a low-cost EC2 instance took way too long - around **15–20 minutes** per build, mostly due to limited disk I/O and CPU performance.  
-- **Options considered:**  
-  - AMI Baking: Way too slow and complicated to automate for every new Nix deployment. Needed something simpler.  
-  - Cachix: Starter plan costs **€50/month**, which was far beyond my budget.  
-  - Temporary “super build machine”: Possible, but again, too complex for what I needed.  
-  - **S3 Binary Caching:** Whenever a build succeeds (either locally or in GitHub Actions), push the Nix binary cache to **S3**, then use it as a **substitute source** on EC2.  
-    → Simple, cheap, and effective this is the method I went with.  
-- **Result:**  
-  - Reduced initial NixOS build time on low-cost EC2 instances by **over 93%**, bringing it down to **under 1 minute**.
+
 ### Kubernetes the Nix Way
 
-All Kubernetes components are configured declaratively using NixOS modules. The cluster bootstraps automatically at system boot with:
-- TLS certificates managed by K8Nix certToolkit and agenix
-- Systemd-based bootstrap tasks for RBAC, CRDs, and addons
+All Kubernetes components are configured declaratively using NixOS modules.
 
-**→ See [infra/nix/README.md](infra/nix/README.md) for comprehensive architecture documentation**
+The following are automatically bootstrapped at boot time:
+- TLS certificate key pairs and CA
+- Systemd-based automatic application of RBAC/CRD/Calico
 
-### WN Auto Join
+### EC2 Provisioning Problem – Fixed
+- **Problem:**
+  - Building NixOS from scratch on a low-cost EC2 instance took way too long - around **15–20 minutes** per build, mostly due to limited disk I/O and CPU performance.
+- **Options considered:**
+  - AMI Baking: Way too slow and complicated to automate for every new Nix deployment. Needed something simpler.
+  - Cachix: Starter plan costs **€50/month**, which was far beyond my budget.
+  - Temporary "super build machine": Possible, but again, too complex for what I needed.
+  - **S3 Binary Caching:** Whenever a build succeeds (either locally or in GitHub Actions), push the Nix binary cache to **S3**, then use it as a **substitute source** on EC2.
+    → Simple, cheap, and effective this is the method I went with.
+- **Result:**
+  - Reduced initial NixOS build time on low-cost EC2 instances by **over 93%**, bringing it down to **under 1 minute**.
 
-### Test Environment Configuration With QEMU
+---
+
+### Calico Installation Problem – Fixed
+- **Problem**
+  - On NixOS, subdirectories under `/etc` and `/opt` are immutable areas automatically generated by Nix build results. Any attempts to write or modify files at runtime get overwritten or rejected, preventing them from functioning properly.
+  - This caused conflicts when Calico's official installation methods (Tigera Operator or Helm chart) tried to deploy CNI binaries to these directories, preventing proper installation.
+
+- **Solution**
+  - **Distributing Calico CNI Binaries via NixPkgs**
+    - To work around NixOS's immutable filesystem constraints, Calico CNI binaries are installed on each node through NixPkgs during nixos-rebuild.
+    - Binaries installed as Nix packages are `/nix/store`-based, so they don't face `/etc` or `/opt` write rejection issues.
+    - Calico requires two binaries: `calico` and `calico-ipam`, but only `calico` exists in NixPkgs distribution.
+    During installation, I created a symbolic link from `calico-ipam` → `calico` to meet the requirements.
+
+  - **Declarative Bootstrapping of Calico Cluster Components**
+    - Referencing [Calico the Hard Way](https://docs.tigera.io/calico/latest/getting-started/kubernetes/hardway/overview), I declared the YAML files for Calico components (CRDs, RBAC, Calico Node DaemonSet, etc.) and implemented a Nix module that bootstraps these on the Control Plane during nixos-rebuild.
+    - I customized necessary parts such as binary locations, CNI config paths, and TLS certificates signed by the cluster-wide CA
+    to align with the cluster structure.
+
+- **Result**
+  - Implemented a fully declarative installation structure where Calico components are automatically deployed during the NixOS bootstrapping phase, without Helm charts or Tigera Operator.
+  - Using the `vxlan: CrossSubnet` option, on-premises nodes communicate via local network while connections to the Control Plane go through the Tailscale network.
+
+---
+
+### CA/TLS Management Problem – Fixed
+- **Problem**
+  - Without tools like Kubeadm, Minikube, or K3s, I was **deploying all Kubernetes components directly via Nix files**, requiring manual CA/TLS certificate management.
+  - This created the burden of manually managing **dozens of TLS certificates and configuration files** for API Server, Kubelet, Kube-Controller-Manager, Scheduler, Etcd, etc.
+
+- **Solution**
+  - Built a custom automation pipeline Nix module, referencing the TLS management approach introduced in [NixCon 2025 - Kubernetes on Nix](https://www.youtube.com/watch?v=leR6m2plirs&t=967s) and [gitlab: Lukas - K8Nix](https://gitlab.com/luxzeitlos/k8nix).
+  <img width="1307" height="511" alt="certtoolkit2" src="https://github.com/user-attachments/assets/1b04b42e-0698-4515-951a-4621b9560c63" />
+
+  - Generate an **SSH key pair (asymmetric keys)** for each node:
+    - **Public key** → Stored in GitHub repository
+    - **Private key** → Stored in local NixOS filesystem on each node
+  - When running `nix run certs-recreate`:
+    1. Generate a new Cluster CA
+    2. Generate **TLS certificates for all Kubernetes components** (API Server, Kubelet, ControllerManager, Scheduler, Etcd, etc.)
+    3. **Encrypt each certificate's private key with the corresponding node's SSH public key**
+    4. Upload the encrypted TLS private keys securely to the GitHub repository
+
+  - When running `nixos-rebuild` on each node:
+    1. Fetch encrypted TLS files from GitHub
+    2. Decrypt using its own SSH private key
+    3. Apply decrypted TLS certificates to each component (API server, kubelet, etc.)
+    4. Services are automatically reconfigured according to declarative settings
+
+- **Result**
+  - Simplified the cumbersome CA/TLS management mechanism to a single `nix run certs-recreate` command.
+  - Worker Nodes already have kubelet TLS certificates signed by the Control Plane's CA and API Server endpoint information, so they can automatically connect to the Control Plane simply by running nixos-rebuild, without any separate join process.
+
+For more details: **[infra/nix/README.md](infra/nix/README.md)**
+
+---
+
+## Current Issues
+- Revising and translating the AI-written rough draft **[infra/nix/README.md](infra/nix/README.md)**, **[infra/README.md](infra/README.md)** to Korean
+- Adding ArgoCD for automated application deployment pipeline
+- Adding observability, establishing log collection and management strategy
+- High-availability PostgreSQL DB in the cluster using StatefulSets
+- Deploying portfolio web application
+- Activating endpoints using CloudFlare or Tailscale features for cluster deployment
