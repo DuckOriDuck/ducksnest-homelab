@@ -62,6 +62,7 @@ Control Plane이 EC2에 자리 잡고 있기 때문에 시도해볼 수 있는 �
 | **ultra** | Intel i5-8250U (8) @ 3.40 GHz | 15.5 GiB | 914.8 GiB ext4 | NVIDIA GTX 1050 Mobile / Intel UHD 620 |
 | **old** | Intel i3-M 330 (4) @ 2.13 GHz | 1.9 GiB | 288.6 GiB ext4 | NVIDIA GeForce 310M |
 
+<img width="2731" height="2048" alt="image" src="https://github.com/user-attachments/assets/7644de3e-9704-4b8a-9f87-3e933e18fabd" />
 #### 클라우드
 
 | Alias | Instance Type | vCPU | Memory |
