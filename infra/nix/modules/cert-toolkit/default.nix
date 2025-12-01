@@ -74,6 +74,16 @@
         usages = [ "client auth" ];
         expiry = "8760h";
       };
+
+      kube-proxy = {
+        commonName = "system:kube-proxy";
+        owner = "root";
+        usages = [ "client auth" ];
+        expiry = "8760h";
+        names = {
+          O = "system:node-proxier";
+        };
+      };
     }
 
     # Control plane certificates

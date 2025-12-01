@@ -100,7 +100,18 @@ in
     };
 
     flannel.enable = false;
-    proxy.enable = false;
+
+    # Enable kube-proxy for service networking
+    proxy = {
+      enable = true;
+      kubeconfig = {
+        server = "https://${cluster.network.apiServerAddress.workers}:${toString cluster.controlPlane.apiServerPort}";
+        caFile = caCert;
+        certFile = certs.kube-proxy.path;
+        keyFile = certs.kube-proxy.keyPath;
+      };
+    };
+
     apiserver.enable = false;
     controllerManager.enable = false;
     scheduler.enable = false;

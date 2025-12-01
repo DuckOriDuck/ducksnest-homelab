@@ -176,9 +176,19 @@ in
       };
     };
 
-    proxy.enable = false;
+    # Enable kube-proxy for service networking
+    proxy = {
+      enable = true;
+      kubeconfig = {
+        server = "https://${cluster.network.apiServerAddress.controlPlane}:${toString cluster.controlPlane.apiServerPort}";
+        caFile = caCert;
+        certFile = certs.kube-proxy.path;
+        keyFile = certs.kube-proxy.keyPath;
+      };
+    };
+
     addons.dns.enable = true;
-    
+
     flannel.enable = false;
   };
 
