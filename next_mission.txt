@@ -1,0 +1,329 @@
+You are an infrastructure automation assistant.
+
+I already have a hybrid Kubernetes cluster and I want you to help me design and generate configs for observability, GitOps with Argo CD, and a Postgres database, step by step.
+
+Please read the context and then follow the task list.
+
+---
+
+## Context
+
+- Control Plane:
+  - Runs on an EC2 instance in AWS.
+  - Access is via a private network (and a Tailscale overlay), not a public k8s API.
+- Worker Nodes:
+  - NixOS based nodes, also connected via Tailscale.
+  - Nix is used to declaratively configure systemd services and basic OS bootstrap.
+- Networking:
+  - Kubernetes CNI is Calico.
+  - Nodes and the control plane talk over Tailscale plus underlying networks.
+- Goal:
+  - Use Argo CD for GitOps (not Flux).
+  - Use Helm charts for Prometheus, Loki, Grafana, Postgres and my applications.
+  - Use Postgres in the cluster via a StatefulSet (simple single primary for now).
+  - Use systemd on each node for low level agents such as metrics and log collectors.
+  - Keep everything as declarative and reproducible as possible.
+
+I do NOT need long theoretical explanations.
+I DO want concrete configs (systemd units or Nix friendly snippets, Kubernetes YAML, Argo CD Applications, Helm values, GitHub Actions workflows) with short comments.
+
+You can assume:
+
+- There is a "homelab" Git repository (for example `ducksnest-homelab`) where:
+  - NixOS configs live.
+  - I will add a `k8s/` directory for Argo CD GitOps manifests.
+- Docker/OCI images will be stored in a container registry (for example GitHub Container Registry).
+- GitHub Actions (GHA) is available for CI.
+
+---
+
+## Overall design constraints
+
+1. systemd vs Kubernetes vs Argo CD
+
+- systemd layer on each node (configured via NixOS) is responsible for:
+  - `node_exporter` (host metrics exporter)
+  - `promtail` or similar log forwarder running on the host, collecting:
+    - journald or system logs
+    - Kubernetes container logs under `/var/log/containers` or equivalent
+- Kubernetes layer is responsible for:
+  - Argo CD itself
+  - kube-prometheus-stack (Prometheus, Alertmanager, kube-state-metrics, optional Grafana)
+  - Loki stack (Loki backend)
+  - Grafana (if not using the one embedded in kube-prometheus-stack)
+  - Postgres (a single primary StatefulSet to start with)
+  - Application workloads (my own apps, exposed via Service and Ingress)
+- Argo CD should control all Kubernetes manifests and Helm based workloads:
+  - The cluster should converge to whatever is declared in Git.
+  - I want to use the "app of apps" pattern: a root Application that points to sub Applications for observability, databases and workloads.
+
+2. Observability
+
+- Metrics:
+  - `node_exporter` runs on each node as a systemd service, exposing metrics on a TCP port (for example `:9100`).
+  - Prometheus in the cluster scrapes:
+    - node_exporter
+    - kubelet and cAdvisor
+    - kube state metrics
+    - application `/metrics` endpoints.
+- Logs:
+  - `promtail` runs on each node as a systemd service and tails:
+    - journald or `/var/log`
+    - `/var/log/containers` for Kubernetes pod logs
+  - Promtail sends logs to Loki running inside the cluster.
+- Grafana:
+  - A Grafana instance in the cluster (either from kube-prometheus-stack or a separate Helm chart).
+  - Uses Prometheus and Loki as data sources.
+
+3. Database
+
+- First iteration:
+  - One Postgres instance as a StatefulSet with a PVC.
+  - Simple configuration, no operator and no automatic failover yet.
+- Backups:
+  - A Kubernetes CronJob that runs `pg_dump` and stores backups to S3 (or another remote storage).
+- Logging:
+  - Postgres logging configured in a way that promtail can pick it up.
+  - You can either log to stderr (so logs go through Kubernetes to `/var/log/containers`) or to a dedicated directory that promtail tails.
+
+4. GitOps with Argo CD
+
+- I will use a single homelab repo that contains:
+  - NixOS configs.
+  - A `k8s/` directory for Argo CD and application manifests.
+- Under `k8s/clusters/duck-hybrid/` I want a structure like:
+
+  - `argocd/` – root Application and possibly Argo CD self management later.
+  - `apps/`
+    - `observability/` – Applications for Prometheus, Loki, Grafana.
+    - `databases/` – Applications for Postgres.
+    - `workloads/` – Applications for my own services.
+
+- Argo CD should be installed once (manually or by a bootstrap manifest) into the `argocd` namespace.
+- Then a root Argo CD Application should:
+  - Point to `k8s/clusters/duck-hybrid/apps`.
+  - Manage sub Applications for each group (observability, databases, workloads).
+- Sync can be automated (auto sync and self heal are fine).
+
+5. CI/CD with GitHub Actions
+
+- For application repos:
+  - On push, build a Docker image and push to the registry.
+  - Then update the image tag in the GitOps repo (`HelmRelease` values or Argo CD Application values) and push that change.
+  - Argo CD will detect the Git change and roll out the new version.
+- For the homelab repo:
+  - Optionally validate YAML, Kustomize and Helm templates in CI.
+
+---
+
+## Tasks for you
+
+Please help me by producing a concrete, step by step set of configs and files, not just bullet points.
+
+We will do this in phases. In each phase, I want actual example configs (with placeholders) that I can adapt.
+
+IMPORTANT:
+- At the end of Phase 1, stop and wait for me to say "next phase" before continuing.
+- Do the same for each subsequent phase.
+
+---
+
+### Phase 1: OS and systemd layer
+
+Goal: define host level services for metrics and logs that NixOS can manage.
+
+1. Design and show:
+
+   - A `node_exporter` systemd service:
+     - Either as a plain systemd unit file or a NixOS style config block.
+     - Expose metrics on a fixed port (for example `:9100`).
+     - Include basic security options (non root user, simple hardening where reasonable).
+
+   - A `promtail` systemd service:
+     - Unit file or Nix style block.
+     - A promtail config that:
+       - Tails journald or a few selected log paths (for example `/var/log/journal` and `/var/log/containers`).
+       - Adds useful labels (node name, environment, cluster name).
+       - Sends logs to a configurable Loki endpoint (for example via an environment variable `LOKI_URL` or a config snippet).
+
+2. Add short comments explaining:
+   - Which paths are being scraped.
+   - What labels are attached.
+   - How I would plug these into NixOS (you do not need to write full Nix, but keep the structure Nix friendly).
+
+Stop after you finish Phase 1 and wait for my "next phase" message.
+
+---
+
+### Phase 2: Argo CD root and Git layout
+
+Goal: set up the Git structure and Argo CD Applications so that Git becomes the source of truth.
+
+Under `k8s/clusters/duck-hybrid/`, design:
+
+1. Directory structure:
+
+   - `argocd/`
+     - `root-application.yaml`
+   - `apps/`
+     - `observability/`
+     - `databases/`
+     - `workloads/`
+
+2. `argocd/root-application.yaml`:
+
+   - An Argo CD Application that:
+     - Uses the homelab repo as `.spec.source.repoURL`.
+     - Points `.spec.source.path` to `k8s/clusters/duck-hybrid/apps`.
+     - Targets a destination cluster (use `https://kubernetes.default.svc`) and a namespace (for example `argocd` or `kube-system`).
+     - Uses an automated sync policy (with options for auto sync and self heal).
+
+3. Inside `apps/`, define stub Applications:
+
+   - `apps/observability/observability-app.yaml`
+   - `apps/databases/databases-app.yaml`
+   - `apps/workloads/workloads-app.yaml`
+
+   Each of these should be Argo CD Applications pointing to their own sub paths, for example:
+
+   - `observability-app` pointing to `k8s/clusters/duck-hybrid/apps/observability/manifests` or similar.
+   - `databases-app` pointing to `k8s/clusters/duck-hybrid/apps/databases/manifests`.
+   - `workloads-app` pointing to `k8s/clusters/duck-hybrid/apps/workloads/manifests`.
+
+Stop after you finish Phase 2 and wait for my "next phase" message.
+
+---
+
+### Phase 3: Observability stack via Helm and Argo CD
+
+Goal: deploy Prometheus, Loki and Grafana using Helm charts managed by Argo CD.
+
+Under `apps/observability/`, design:
+
+1. A Kustomization or simple directory structure:
+
+   - `apps/observability/manifests/`
+     - `prometheus-app.yaml`
+     - `loki-app.yaml`
+     - `grafana-app.yaml` (optional if using Grafana from kube-prometheus-stack)
+
+2. `prometheus-app.yaml`:
+
+   - An Argo CD Application that:
+     - Uses a Helm chart such as `prometheus-community/kube-prometheus-stack`.
+     - Targets a namespace like `observability`.
+     - Has inline `values` or a `values.yaml` file that:
+       - Enables Prometheus, Alertmanager, kube-state-metrics.
+       - Optionally enables Grafana.
+       - Configures Prometheus to scrape `node_exporter` endpoints (either via ServiceMonitors or a simple static scrape config with a placeholder address).
+
+3. `loki-app.yaml`:
+
+   - An Argo CD Application using the Loki Helm chart:
+     - Enables persistent storage (PVC).
+     - Exposes a predictable service name and port (for example `loki.observability.svc.cluster.local:3100`).
+     - This address will be used by promtail from Phase 1.
+
+4. `grafana-app.yaml` (if not using the Grafana from kube-prometheus-stack):
+
+   - An Argo CD Application using the Grafana Helm chart.
+   - In the values:
+     - Add Prometheus and Loki as data sources (using the service names defined above).
+     - Optionally create a simple dashboard for node metrics and pod logs.
+
+Stop after you finish Phase 3 and wait for my "next phase" message.
+
+---
+
+### Phase 4: Postgres StatefulSet and backups
+
+Goal: run a single primary Postgres in the cluster with basic backups.
+
+Under `apps/databases/manifests/`, design:
+
+1. Postgres deployment:
+
+   - A namespace (for example `databases`).
+   - A StatefulSet for Postgres:
+     - `replicas: 1`.
+     - A PVC for data.
+     - A Service for internal access on port 5432.
+     - Environment variables for DB name, user and password (assume a Secret contains the sensitive values).
+
+   - Reasonable defaults for Postgres config (you can use a ConfigMap or just env vars).
+
+2. Logging setup:
+
+   - Configure Postgres to:
+     - Either log to stderr (so logs go to pod stdout/stderr, then into `/var/log/containers` and promtail picks them up).
+     - Or log to a dedicated directory that promtail or a sidecar could tail.
+   - Add a short note on which approach you choose and why.
+
+3. Backup CronJob:
+
+   - A Kubernetes CronJob in the same namespace that:
+     - Runs `pg_dump` against the Postgres Service.
+     - Uploads the dump to S3 (use environment variables or a Secret for S3 bucket, credentials and region).
+   - Include a short high level note on how restore would work (for example run a one off Pod with `psql < dump`).
+
+Stop after you finish Phase 4 and wait for my "next phase" message.
+
+---
+
+### Phase 5: Application Helm chart, Argo CD Application and CI pipeline
+
+Goal: show how a typical application is deployed and updated via GitOps and GitHub Actions.
+
+Under `apps/workloads/manifests/`, design:
+
+1. A generic Argo CD Application for an app named `my-api`:
+
+   - Assumes there is a Helm chart for `my-api` in either:
+     - The same homelab repo under `charts/my-api`, or
+     - A separate Git repo (you can choose one pattern and stick with it).
+   - The Application should:
+     - Point to that Helm chart.
+     - Set values for:
+       - `image.repository`
+       - `image.tag`
+       - resource requests and limits
+       - environment variables for DB connection (host, port, DB name, user, password from Secret)
+     - Create a Service and an Ingress for HTTP traffic.
+
+2. A sample GitHub Actions workflow for the `my-api` code repository:
+
+   - On push to `main`:
+     - Checkout the code.
+     - Build and push a Docker image to a registry such as `ghcr.io/<USER>/my-api:<SHA>`.
+     - Checkout the GitOps repo (homelab repo).
+     - Update the `image.tag` field in the `my-api` Argo CD Application or values file using a simple tool (for example `yq` or `sed`).
+     - Commit and push the change (or open a pull request).
+
+   - Use real looking but placeholder values:
+     - `<GITHUB_USER>`
+     - `<REGISTRY>`
+     - `<GITOPS_REPO>`
+     - `<BRANCH>`
+
+3. Make sure the workflow uses minimal but realistic steps:
+   - `actions/checkout`
+   - `docker/build-push-action`
+   - a simple step to edit YAML
+   - `git commit` and `git push` with a bot user.
+
+Stop after you finish Phase 5.
+
+---
+
+## Output style
+
+- For each Phase:
+  - Start with a short explanation (2 to 5 sentences maximum) of what you are doing and why.
+  - Then provide the actual configs:
+    - systemd units or Nix friendly blocks for Phase 1
+    - Argo CD Applications and Kubernetes YAML for later phases
+    - GitHub Actions workflow YAML for CI
+- Use placeholders where appropriate:
+  - `<CLUSTER_NAME>`, `<ENV>`, `<GITHUB_USER>`, `<REGISTRY>`, `<BUCKET_NAME>`, etc.
+- Aim for correctness and clear structure, even if the YAML is a bit verbose.
+- Remember to stop after each Phase and wait for me to say "next phase".

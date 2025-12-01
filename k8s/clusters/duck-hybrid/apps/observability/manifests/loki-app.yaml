@@ -1,0 +1,163 @@
+---
+# Loki log aggregation system
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    chart: loki
+    repoURL: https://grafana.github.io/helm-charts
+    targetRevision: 5.41.4  # Update to latest stable version as needed
+
+    helm:
+      releaseName: loki
+
+      values: |
+        # Deployment mode: single binary for simplicity
+        deploymentMode: SingleBinary
+
+        loki:
+          # Authentication - disable for internal cluster use
+          auth_enabled: false
+
+          # Common configuration
+          commonConfig:
+            replication_factor: 1
+
+          # Storage configuration
+          storage:
+            type: filesystem
+
+          # Schema configuration
+          schemaConfig:
+            configs:
+              - from: 2024-01-01
+                store: tsdb
+                object_store: filesystem
+                schema: v13
+                index:
+                  prefix: index_
+                  period: 24h
+
+          # Limits configuration
+          limits_config:
+            retention_period: 744h  # 31 days
+            ingestion_rate_mb: 10
+            ingestion_burst_size_mb: 20
+            per_stream_rate_limit: 5MB
+            per_stream_rate_limit_burst: 15MB
+            max_query_series: 10000
+            max_query_parallelism: 32
+
+          # Server configuration
+          server:
+            http_listen_port: 3100
+            grpc_listen_port: 9095
+            log_level: info
+
+        # Single binary deployment
+        singleBinary:
+          replicas: 1
+
+          # Persistence for logs
+          persistence:
+            enabled: true
+            size: 100Gi
+            storageClass: ""  # Use default storage class
+
+          # Resources
+          resources:
+            requests:
+              memory: 1Gi
+              cpu: 500m
+            limits:
+              memory: 2Gi
+              cpu: 1000m
+
+          # Extra environment variables
+          extraEnv:
+            - name: TZ
+              value: UTC
+
+        # Service configuration
+        service:
+          type: ClusterIP
+          port: 3100
+
+        # Service Monitor for Prometheus
+        serviceMonitor:
+          enabled: true
+          labels:
+            release: kube-prometheus-stack
+
+        # Disable unnecessary components for single binary mode
+        backend:
+          replicas: 0
+        read:
+          replicas: 0
+        write:
+          replicas: 0
+
+        ingester:
+          replicas: 0
+        querier:
+          replicas: 0
+        queryFrontend:
+          replicas: 0
+        queryScheduler:
+          replicas: 0
+        distributor:
+          replicas: 0
+        compactor:
+          replicas: 0
+        indexGateway:
+          replicas: 0
+        bloomCompactor:
+          replicas: 0
+        bloomGateway:
+          replicas: 0
+
+        # Test configuration
+        test:
+          enabled: false
+
+        # Monitoring configuration
+        monitoring:
+          selfMonitoring:
+            enabled: false
+            grafanaAgent:
+              installOperator: false
+
+        # Gateway (nginx) - optional reverse proxy
+        gateway:
+          enabled: false
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Sync waves - ensure Loki comes after Prometheus
+  info:
+    - name: wave
+      value: "1"

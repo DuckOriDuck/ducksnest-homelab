@@ -1,0 +1,47 @@
+---
+# Root Application: manages all sub-applications via the "app of apps" pattern
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  # Finalizer ensures cascade deletion of all managed resources
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/<GITHUB_USER>/ducksnest-homelab.git
+    targetRevision: main
+    path: k8s/clusters/duck-hybrid/apps
+
+    # Directory recursion to discover all Application manifests
+    directory:
+      recurse: true
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      # Automatically sync when git changes are detected
+      prune: true
+      # Automatically correct drift from desired state
+      selfHeal: true
+      # Allow empty directories
+      allowEmpty: false
+
+    syncOptions:
+      # Create namespace if it doesn't exist
+      - CreateNamespace=true
+      # Preserve resources when Application is deleted
+      # - PruneLast=false
+
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

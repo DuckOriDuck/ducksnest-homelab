@@ -1,0 +1,255 @@
+---
+# Prometheus stack using kube-prometheus-stack Helm chart
+# Includes: Prometheus, Alertmanager, Grafana, kube-state-metrics, node-exporter (optional)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    chart: kube-prometheus-stack
+    repoURL: https://prometheus-community.github.io/helm-charts
+    targetRevision: 56.6.2  # Update to latest stable version as needed
+
+    helm:
+      releaseName: kube-prometheus-stack
+
+      values: |
+        # Global settings
+        fullnameOverride: prometheus
+
+        # Prometheus configuration
+        prometheus:
+          enabled: true
+
+          prometheusSpec:
+            # Retention settings
+            retention: 15d
+            retentionSize: "50GB"
+
+            # Storage configuration
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 50Gi
+
+            # Resource limits
+            resources:
+              requests:
+                memory: 2Gi
+                cpu: 500m
+              limits:
+                memory: 4Gi
+                cpu: 2000m
+
+            # Scrape interval
+            scrapeInterval: 30s
+            evaluationInterval: 30s
+
+            # Service monitors - automatically discover services with prometheus.io annotations
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+
+            # Additional scrape configs for node-exporter on host network
+            additionalScrapeConfigs:
+              # Scrape node-exporter running on each node via Tailscale or node IP
+              - job_name: 'node-exporter-hosts'
+                static_configs:
+                  # Add your node IPs here - one for each worker node
+                  - targets:
+                    # Example: ['10.0.1.10:9100', '10.0.1.11:9100']
+                    - '<NODE_IP>:9100'
+                    labels:
+                      cluster: duck-hybrid
+                      environment: homelab
+
+              # Scrape kubelet metrics
+              - job_name: 'kubernetes-nodes-kubelet'
+                kubernetes_sd_configs:
+                  - role: node
+                scheme: https
+                tls_config:
+                  ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                  insecure_skip_verify: true
+                bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+                relabel_configs:
+                  - action: labelmap
+                    regex: __meta_kubernetes_node_label_(.+)
+
+              # Scrape cAdvisor metrics
+              - job_name: 'kubernetes-nodes-cadvisor'
+                kubernetes_sd_configs:
+                  - role: node
+                scheme: https
+                tls_config:
+                  ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                  insecure_skip_verify: true
+                bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+                metrics_path: /metrics/cadvisor
+                relabel_configs:
+                  - action: labelmap
+                    regex: __meta_kubernetes_node_label_(.+)
+
+          # Service configuration
+          service:
+            type: ClusterIP
+            port: 9090
+
+          # Ingress - configure if needed
+          ingress:
+            enabled: false
+
+        # Alertmanager configuration
+        alertmanager:
+          enabled: true
+
+          alertmanagerSpec:
+            storage:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 10Gi
+
+            resources:
+              requests:
+                memory: 256Mi
+                cpu: 100m
+              limits:
+                memory: 512Mi
+                cpu: 500m
+
+          service:
+            type: ClusterIP
+            port: 9093
+
+        # Grafana configuration
+        grafana:
+          enabled: true
+
+          # Admin credentials
+          adminPassword: admin  # Change this!
+
+          # Persistence
+          persistence:
+            enabled: true
+            size: 10Gi
+            accessModes: ["ReadWriteOnce"]
+
+          # Resources
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+
+          # Data sources - Prometheus and Loki
+          datasources:
+            datasources.yaml:
+              apiVersion: 1
+              datasources:
+                - name: Prometheus
+                  type: prometheus
+                  url: http://prometheus-prometheus:9090
+                  access: proxy
+                  isDefault: true
+                  jsonData:
+                    timeInterval: 30s
+
+                - name: Loki
+                  type: loki
+                  url: http://loki:3100
+                  access: proxy
+                  jsonData:
+                    maxLines: 1000
+
+          # Dashboard providers
+          dashboardProviders:
+            dashboardproviders.yaml:
+              apiVersion: 1
+              providers:
+                - name: 'default'
+                  orgId: 1
+                  folder: ''
+                  type: file
+                  disableDeletion: false
+                  editable: true
+                  options:
+                    path: /var/lib/grafana/dashboards/default
+
+          # Pre-installed dashboards
+          dashboards:
+            default:
+              # Node Exporter dashboard
+              node-exporter:
+                gnetId: 1860
+                revision: 31
+                datasource: Prometheus
+
+              # Kubernetes cluster monitoring
+              kubernetes-cluster:
+                gnetId: 7249
+                revision: 1
+                datasource: Prometheus
+
+              # Loki logs
+              loki-logs:
+                gnetId: 13639
+                revision: 2
+                datasource: Loki
+
+          # Service configuration
+          service:
+            type: NodePort
+            nodePort: 30300
+            port: 80
+
+        # kube-state-metrics
+        kube-state-metrics:
+          enabled: true
+
+        # Node exporter - disabled because we run it on host via systemd
+        prometheus-node-exporter:
+          enabled: false
+
+        # Operator configuration
+        prometheusOperator:
+          enabled: true
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
