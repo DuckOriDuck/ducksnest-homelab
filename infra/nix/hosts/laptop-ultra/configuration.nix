@@ -65,12 +65,14 @@
     };
 
     # Power management - no sleep
-    logind.extraConfig = ''
-      HandleLidSwitch=ignore
-      HandleLidSwitchDocked=ignore
-      HandleLidSwitchExternalPower=ignore
-      IdleAction=ignore
-    '';
+    logind.settings = {
+      Login = {
+        HandleLidSwitch = "ignore";
+        HandleLidSwitchDocked = "ignore";
+        HandleLidSwitchExternalPower = "ignore";
+        IdleAction = "ignore";
+      };
+    };
   };
 
 

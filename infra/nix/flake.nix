@@ -2,7 +2,7 @@
   description = "DucksNest Homelab NixOS Configuration";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixos-generators = {
       url = "github:nix-community/nixos-generators";
@@ -61,6 +61,28 @@
         program = "${mkRecreateCertsScript args}/bin/recreate-certs";
       };
 
+      # Create a script that recreates only specific certificates
+      mkRecreateSpecificCertScript = { nixosConfigurations, system, certName }: let
+        pkgs = import nixpkgs { inherit system; };
+        lib = nixpkgs.lib;
+      in pkgs.writeShellScriptBin "recreate-${certName}-cert" ''
+        ${lib.pipe nixosConfigurations [
+          lib.attrValues
+          (map (cfg: lib.attrValues cfg.config.certToolkit.cas))
+          lib.concatLists
+          (map (ca: lib.attrValues ca.certs))
+          lib.concatLists
+          (lib.filter (cert: lib.hasSuffix "-${certName}.crt" cert.relativePath))
+          (map (cert: cert.createScript))
+          (lib.strings.concatStringsSep "\n")
+        ]}
+      '';
+
+      mkRecreateSpecificCertApp = args: {
+        type = "app";
+        program = "${mkRecreateSpecificCertScript args}/bin/recreate-${args.certName}-cert";
+      };
+
       mkNixosConfig = hostname: system: role:
         nixpkgs.lib.nixosSystem {
           inherit system;
@@ -116,6 +138,12 @@
             test-controlplane = self.nixosConfigurations.test-controlplane;
             test-worker-node = self.nixosConfigurations.test-worker-node;
           };
+        };
+
+        "certs-recreate-kube-proxy" = mkRecreateSpecificCertApp {
+          system = "x86_64-linux";
+          nixosConfigurations = self.nixosConfigurations;
+          certName = "kube-proxy";
         };
       };
 

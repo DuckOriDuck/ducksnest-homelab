@@ -84,6 +84,7 @@ in
       enable = true;
       bindAddress = cluster.controlPlane.bindAddress;
       allowPrivileged = true;
+      serviceClusterIpRange = config.cluster.network.serviceCIDR;
       extraSANs = [
         config.networking.hostName
         "127.0.0.1"
@@ -146,6 +147,7 @@ in
       clientCaFile = caCert;
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
+      nodeIp = "\${NODE_IP}";
       kubeconfig = {
         server = "https://${cluster.network.apiServerAddress.controlPlane}:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
@@ -176,9 +178,11 @@ in
       };
     };
 
+    # Disable systemd kube-proxy (using DaemonSet instead)
     proxy.enable = false;
+
     addons.dns.enable = true;
-    
+
     flannel.enable = false;
   };
 
@@ -204,7 +208,7 @@ in
     tasks = {
       generate-kubeconfig = {
         description = "Generate admin kubeconfig";
-        script = "${bootstrapScripts}/generate-admin-kubeconfig.sh";
+        script = "${bootstrapScripts}/generate-kubeconfig.sh";
         args = [
           "/etc/kubernetes/cluster-admin.kubeconfig"
           caCert
@@ -219,7 +223,7 @@ in
 
       generate-cni-kubeconfig = {
         description = "Generate CNI kubeconfig";
-        script = "${bootstrapScripts}/generate-cni-kubeconfig.sh";
+        script = "${bootstrapScripts}/generate-kubeconfig.sh";
         args = [
           "/var/lib/cni/net.d/calico-kubeconfig"
           caCert
@@ -230,6 +234,27 @@ in
           "calico-cni"
         ];
         after = [ "agenix.service" "kube-apiserver.service" ];
+      };
+
+      generate-kube-proxy-kubeconfig = {
+        description = "Generate kube-proxy kubeconfig for control plane";
+        preStart = ''
+          mkdir -p /etc/kubernetes/pki
+          cp ${caCert} /etc/kubernetes/pki/ca.crt
+          cp ${certs.kube-proxy.path} /etc/kubernetes/pki/kube-proxy.crt
+          cp ${certs.kube-proxy.keyPath} /etc/kubernetes/pki/kube-proxy.key
+        '';
+        script = "${bootstrapScripts}/generate-kubeconfig.sh";
+        args = [
+          "/etc/kubernetes/kube-proxy.kubeconfig"
+          "/etc/kubernetes/pki/ca.crt"
+          "/etc/kubernetes/pki/kube-proxy.crt"
+          "/etc/kubernetes/pki/kube-proxy.key"
+          "https://${cluster.network.apiServerAddress.controlPlane}:${toString cluster.controlPlane.apiServerPort}"
+          cluster.name
+          "kube-proxy"
+        ];
+        after = [ "agenix.service" ];
       };
 
       bootstrap-rbac = {
@@ -243,7 +268,12 @@ in
           "60"
           "5"
         ];
-        after = [ "k8s-bootstrap-generate-kubeconfig.service" "kube-apiserver.service" ];
+        after = [ 
+          "k8s-bootstrap-generate-kubeconfig.service"
+          "k8s-bootstrap-generate-kube-proxy-kubeconfig.service"
+          "k8s-bootstrap-generate-cni-kubeconfig.service"
+          "kube-apiserver.service" 
+          ];
         environment = {
           KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
         };
@@ -280,20 +310,6 @@ in
         };
       };
 
-      calico-rbac = {
-        description = "Apply Calico RBAC";
-        script = "${bootstrapScripts}/apply-manifests.sh";
-        args = [
-          "${pkgs.kubernetes}/bin/kubectl"
-          "${./../../k8s/rbac/04-calico-cni.yaml}"
-          "${./../../k8s/rbac/05-calico-node.yaml}"
-        ];
-        after = [ "k8s-bootstrap-bootstrap-rbac.service" ];
-        environment = {
-          KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
-        };
-      };
-
       calico-node = {
         description = "Deploy Calico Node DaemonSet";
         script = "${bootstrapScripts}/apply-manifests.sh";
@@ -301,7 +317,20 @@ in
           "${pkgs.kubernetes}/bin/kubectl"
           "${./../../k8s/addons/calico-node.yaml}"
         ];
-        after = [ "k8s-bootstrap-calico-rbac.service" "k8s-bootstrap-calico-ip-pool.service" ];
+        after = [ "k8s-bootstrap-bootstrap-rbac.service" "k8s-bootstrap-calico-ip-pool.service" ];
+        environment = {
+          KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
+        };
+      };
+
+      kube-proxy-daemonset = {
+        description = "Deploy kube-proxy DaemonSet";
+        script = "${bootstrapScripts}/apply-manifests.sh";
+        args = [
+          "${pkgs.kubernetes}/bin/kubectl"
+          "${./../../k8s/kube-system/kube-proxy.yaml}"
+        ];
+        after = [ "k8s-bootstrap-bootstrap-rbac.service" "k8s-bootstrap-generate-kube-proxy-kubeconfig.service" ];
         environment = {
           KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
         };
@@ -310,4 +339,34 @@ in
   };
 
   environment.variables.KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
+
+  systemd.services.kubelet = {
+    after = [ "tailscaled.service" "k8s-bootstrap-generate-kube-proxy-kubeconfig.service"];
+    wants = [ "tailscaled.service" ];
+    
+    path = with pkgs; [ iproute2 gnugrep gawk coreutils ];
+
+    preStart = ''
+      echo "Waiting for tailscale0 interface..."
+      # 최대 60초 동안 tailscale0 인터페이스 대기
+      for i in {1..30}; do
+        if ip addr show tailscale0 >/dev/null 2>&1; then
+          NODE_IP=$(ip -4 addr show tailscale0 | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
+          if [ -n "$NODE_IP" ]; then
+            echo "NODE_IP=$NODE_IP" > /run/kubelet-env
+            echo "Successfully detected Tailscale IP: $NODE_IP"
+            exit 0
+          fi
+        fi
+        sleep 2
+      done
+      echo "Error: Failed to detect Tailscale IP after 60 seconds."
+      exit 1
+    '';
+
+    serviceConfig = {
+      EnvironmentFile = "-/run/kubelet-env";
+      RestartSec = lib.mkForce "5s";
+    };
+  };
 }

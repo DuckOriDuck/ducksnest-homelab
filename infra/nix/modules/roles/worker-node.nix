@@ -69,6 +69,7 @@ in
       clientCaFile = caCert;
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
+      nodeIp = "\${NODE_IP}";
       kubeconfig = {
         server = "https://${cluster.network.apiServerAddress.workers}:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
@@ -100,7 +101,10 @@ in
     };
 
     flannel.enable = false;
+
+    # Disable systemd kube-proxy (using DaemonSet instead)
     proxy.enable = false;
+
     apiserver.enable = false;
     controllerManager.enable = false;
     scheduler.enable = false;
@@ -127,7 +131,7 @@ in
     tasks = {
       generate-cni-kubeconfig = {
         description = "Generate CNI kubeconfig for worker node";
-        script = "${bootstrapScripts}/generate-cni-kubeconfig.sh";
+        script = "${bootstrapScripts}/generate-kubeconfig.sh";
         args = [
           "/var/lib/cni/net.d/calico-kubeconfig"
           caCert
@@ -139,10 +143,63 @@ in
         ];
         after = [ "agenix.service" ];
       };
+
+      generate-kube-proxy-kubeconfig = {
+        description = "Generate kube-proxy kubeconfig for worker node";
+        preStart = ''
+          mkdir -p /etc/kubernetes/pki
+          cp ${caCert} /etc/kubernetes/pki/ca.crt
+          cp ${certs.kube-proxy.path} /etc/kubernetes/pki/kube-proxy.crt
+          cp ${certs.kube-proxy.keyPath} /etc/kubernetes/pki/kube-proxy.key
+        '';
+        script = "${bootstrapScripts}/generate-kubeconfig.sh";
+        args = [
+          "/etc/kubernetes/kube-proxy.kubeconfig"
+          "/etc/kubernetes/pki/ca.crt"
+          "/etc/kubernetes/pki/kube-proxy.crt"
+          "/etc/kubernetes/pki/kube-proxy.key"
+          "https://${cluster.network.apiServerAddress.workers}:${toString cluster.controlPlane.apiServerPort}"
+          cluster.name
+          "kube-proxy"
+        ];
+        after = [ "agenix.service" ];
+      };
     };
   };
 
-  systemd.services = {
-    kubelet.after = [ "tailscaled.service" "containerd.service" "k8s-bootstrap-generate-cni-kubeconfig.service" ];
+  systemd.services.kubelet = {
+    after = [ 
+      "tailscaled.service" 
+      "containerd.service" 
+      "k8s-bootstrap-generate-cni-kubeconfig.service"
+      "k8s-bootstrap-generate-kube-proxy-kubeconfig.service"
+      "network-online.target" 
+    ];
+    wants = [ 
+      "tailscaled.service" 
+      "network-online.target" # 추가
+    ];
+    
+    path = with pkgs; [ iproute2 gnugrep gawk coreutils ];
+
+    preStart = ''
+      echo "Waiting for tailscale0 interface..."
+      for i in {1..30}; do
+        if ip addr show tailscale0 >/dev/null 2>&1; then
+          NODE_IP=$(ip -4 addr show tailscale0 | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
+          if [ -n "$NODE_IP" ]; then
+            echo "NODE_IP=$NODE_IP" > /run/kubelet-env
+            exit 0
+          fi
+        fi
+        sleep 2
+      done
+      exit 1
+    '';
+
+    serviceConfig = {
+      EnvironmentFile = "-/run/kubelet-env";
+      RestartSec = lib.mkForce "5s";
+    };
   };
 }
