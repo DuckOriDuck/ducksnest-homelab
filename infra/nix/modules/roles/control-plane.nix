@@ -329,12 +329,7 @@ in
   environment.variables.KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
 
   systemd.services.kubelet = {
-    after = [ 
-      "tailscaled.service" 
-      "containerd.service" 
-      "k8s-bootstrap-generate-cni-kubeconfig.service" 
-      "network-online.target" 
-    ];
+    after = [ "tailscaled.service"];
     wants = [ "tailscaled.service" ];
     
     path = with pkgs; [ iproute2 gnugrep gawk coreutils ];
@@ -359,7 +354,7 @@ in
 
     serviceConfig = {
       EnvironmentFile = "-/run/kubelet-env";
-      RestartSec = "5s";
+      RestartSec = lib.mkForce "5s";
     };
   };
 }

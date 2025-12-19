@@ -162,31 +162,37 @@ in
   };
 
   systemd.services.kubelet = {
-    after = [ "tailscaled.service" "containerd.service" "k8s-bootstrap-generate-cni-kubeconfig.service" "network-online.target" ];
-    wants = [ "tailscaled.service" ];
+    after = [ 
+      "tailscaled.service" 
+      "containerd.service" 
+      "k8s-bootstrap-generate-cni-kubeconfig.service" 
+      "network-online.target" 
+    ];
+    wants = [ 
+      "tailscaled.service" 
+      "network-online.target" # 추가
+    ];
+    
     path = with pkgs; [ iproute2 gnugrep gawk coreutils ];
 
     preStart = ''
-      # tailscale0 인터페이스가 활성화될 때까지 최대 60초 대기
       echo "Waiting for tailscale0 interface..."
       for i in {1..30}; do
         if ip addr show tailscale0 >/dev/null 2>&1; then
           NODE_IP=$(ip -4 addr show tailscale0 | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
           if [ -n "$NODE_IP" ]; then
             echo "NODE_IP=$NODE_IP" > /run/kubelet-env
-            echo "Successfully detected Tailscale IP: $NODE_IP"
             exit 0
           fi
         fi
         sleep 2
       done
-      echo "Error: Tailscale interface or IP not found."
       exit 1
     '';
 
     serviceConfig = {
       EnvironmentFile = "-/run/kubelet-env";
-      RestartSec = "5s";
+      RestartSec = lib.mkForce "5s";
     };
   };
 }
