@@ -8,7 +8,7 @@ data:
     apiVersion: kubeproxy.config.k8s.io/v1alpha1
     kind: KubeProxyConfiguration
     clientConnection:
-      kubeconfig: /var/lib/kube-proxy/kubeconfig.conf
+      kubeconfig: /etc/kubernetes/kube-proxy.kubeconfig
     clusterCIDR: "10.244.0.0/16"
     mode: "iptables"
     iptables:
@@ -21,25 +21,6 @@ data:
       min: 131072
       tcpCloseWaitTimeout: 1h0m0s
       tcpEstablishedTimeout: 24h0m0s
-  kubeconfig.conf: |-
-    apiVersion: v1
-    kind: Config
-    clusters:
-    - name: default
-      cluster:
-        certificate-authority: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-        server: https://ducksnest-controlplane:6443
-    users:
-    - name: default
-      user:
-        tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
-    contexts:
-    - name: default
-      context:
-        cluster: default
-        namespace: default
-        user: default
-    current-context: default
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -71,7 +52,7 @@ spec:
         effect: NoExecute
       containers:
       - name: kube-proxy
-        image: registry.k8s.io/kube-proxy:v1.30.0
+        image: registry.k8s.io/kube-proxy:v1.34.2
         command:
         - /usr/local/bin/kube-proxy
         - --config=/var/lib/kube-proxy/config.conf
@@ -85,8 +66,11 @@ spec:
         securityContext:
           privileged: true
         volumeMounts:
-        - name: kube-proxy
+        - name: kube-proxy-config
           mountPath: /var/lib/kube-proxy
+        - name: kubeconfig
+          mountPath: /etc/kubernetes
+          readOnly: true
         - name: xtables-lock
           mountPath: /run/xtables.lock
           readOnly: false
@@ -94,9 +78,13 @@ spec:
           mountPath: /lib/modules
           readOnly: true
       volumes:
-      - name: kube-proxy
+      - name: kube-proxy-config
         configMap:
           name: kube-proxy
+      - name: kubeconfig
+        hostPath:
+          path: /etc/kubernetes
+          type: Directory
       - name: xtables-lock
         hostPath:
           path: /run/xtables.lock

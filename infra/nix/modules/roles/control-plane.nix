@@ -146,6 +146,7 @@ in
       clientCaFile = caCert;
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
+      extraOpts = "--node-ip=$(ip -4 addr show tailscale0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')";
       kubeconfig = {
         server = "https://${cluster.network.apiServerAddress.controlPlane}:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
@@ -176,16 +177,8 @@ in
       };
     };
 
-    # Enable kube-proxy for service networking
-    proxy = {
-      enable = true;
-      kubeconfig = {
-        server = "https://${cluster.network.apiServerAddress.controlPlane}:${toString cluster.controlPlane.apiServerPort}";
-        caFile = caCert;
-        certFile = certs.kube-proxy.path;
-        keyFile = certs.kube-proxy.keyPath;
-      };
-    };
+    # Disable systemd kube-proxy (using DaemonSet instead)
+    proxy.enable = false;
 
     addons.dns.enable = true;
 
@@ -214,7 +207,7 @@ in
     tasks = {
       generate-kubeconfig = {
         description = "Generate admin kubeconfig";
-        script = "${bootstrapScripts}/generate-admin-kubeconfig.sh";
+        script = "${bootstrapScripts}/generate-kubeconfig.sh";
         args = [
           "/etc/kubernetes/cluster-admin.kubeconfig"
           caCert
@@ -229,7 +222,7 @@ in
 
       generate-cni-kubeconfig = {
         description = "Generate CNI kubeconfig";
-        script = "${bootstrapScripts}/generate-cni-kubeconfig.sh";
+        script = "${bootstrapScripts}/generate-kubeconfig.sh";
         args = [
           "/var/lib/cni/net.d/calico-kubeconfig"
           caCert
@@ -240,6 +233,21 @@ in
           "calico-cni"
         ];
         after = [ "agenix.service" "kube-apiserver.service" ];
+      };
+
+      generate-kube-proxy-kubeconfig = {
+        description = "Generate kube-proxy kubeconfig for control plane";
+        script = "${bootstrapScripts}/generate-kubeconfig.sh";
+        args = [
+          "/etc/kubernetes/kube-proxy.kubeconfig"
+          caCert
+          certs.kube-proxy.path
+          certs.kube-proxy.keyPath
+          "https://${cluster.network.apiServerAddress.controlPlane}:${toString cluster.controlPlane.apiServerPort}"
+          cluster.name
+          "kube-proxy"
+        ];
+        after = [ "agenix.service" ];
       };
 
       bootstrap-rbac = {
@@ -290,20 +298,6 @@ in
         };
       };
 
-      calico-rbac = {
-        description = "Apply Calico RBAC";
-        script = "${bootstrapScripts}/apply-manifests.sh";
-        args = [
-          "${pkgs.kubernetes}/bin/kubectl"
-          "${./../../k8s/rbac/04-calico-cni.yaml}"
-          "${./../../k8s/rbac/05-calico-node.yaml}"
-        ];
-        after = [ "k8s-bootstrap-bootstrap-rbac.service" ];
-        environment = {
-          KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
-        };
-      };
-
       calico-node = {
         description = "Deploy Calico Node DaemonSet";
         script = "${bootstrapScripts}/apply-manifests.sh";
@@ -311,7 +305,20 @@ in
           "${pkgs.kubernetes}/bin/kubectl"
           "${./../../k8s/addons/calico-node.yaml}"
         ];
-        after = [ "k8s-bootstrap-calico-rbac.service" "k8s-bootstrap-calico-ip-pool.service" ];
+        after = [ "k8s-bootstrap-bootstrap-rbac.service" "k8s-bootstrap-calico-ip-pool.service" ];
+        environment = {
+          KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
+        };
+      };
+
+      kube-proxy-daemonset = {
+        description = "Deploy kube-proxy DaemonSet";
+        script = "${bootstrapScripts}/apply-manifests.sh";
+        args = [
+          "${pkgs.kubernetes}/bin/kubectl"
+          "${./../../k8s/kube-system/kube-proxy.yaml}"
+        ];
+        after = [ "k8s-bootstrap-bootstrap-rbac.service" ];
         environment = {
           KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
         };

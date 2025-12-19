@@ -69,6 +69,7 @@ in
       clientCaFile = caCert;
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
+      extraOpts = "--node-ip=$(ip -4 addr show tailscale0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')";
       kubeconfig = {
         server = "https://${cluster.network.apiServerAddress.workers}:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
@@ -101,16 +102,8 @@ in
 
     flannel.enable = false;
 
-    # Enable kube-proxy for service networking
-    proxy = {
-      enable = true;
-      kubeconfig = {
-        server = "https://${cluster.network.apiServerAddress.workers}:${toString cluster.controlPlane.apiServerPort}";
-        caFile = caCert;
-        certFile = certs.kube-proxy.path;
-        keyFile = certs.kube-proxy.keyPath;
-      };
-    };
+    # Disable systemd kube-proxy (using DaemonSet instead)
+    proxy.enable = false;
 
     apiserver.enable = false;
     controllerManager.enable = false;
@@ -138,7 +131,7 @@ in
     tasks = {
       generate-cni-kubeconfig = {
         description = "Generate CNI kubeconfig for worker node";
-        script = "${bootstrapScripts}/generate-cni-kubeconfig.sh";
+        script = "${bootstrapScripts}/generate-kubeconfig.sh";
         args = [
           "/var/lib/cni/net.d/calico-kubeconfig"
           caCert
@@ -147,6 +140,21 @@ in
           "https://${cluster.network.apiServerAddress.workers}:${toString cluster.controlPlane.apiServerPort}"
           cluster.name
           "calico-cni"
+        ];
+        after = [ "agenix.service" ];
+      };
+
+      generate-kube-proxy-kubeconfig = {
+        description = "Generate kube-proxy kubeconfig for worker node";
+        script = "${bootstrapScripts}/generate-kubeconfig.sh";
+        args = [
+          "/etc/kubernetes/kube-proxy.kubeconfig"
+          caCert
+          certs.kube-proxy.path
+          certs.kube-proxy.keyPath
+          "https://${cluster.network.apiServerAddress.workers}:${toString cluster.controlPlane.apiServerPort}"
+          cluster.name
+          "kube-proxy"
         ];
         after = [ "agenix.service" ];
       };
