@@ -264,7 +264,7 @@ in
         after = [ 
           "k8s-bootstrap-generate-kubeconfig.service"
           "k8s-bootstrap-generate-kube-proxy-kubeconfig.service"
-          "k8s-bootstrap-generate-cni-kubeconfig"
+          "k8s-bootstrap-generate-cni-kubeconfig.service"
           "kube-apiserver.service" 
           ];
         environment = {
