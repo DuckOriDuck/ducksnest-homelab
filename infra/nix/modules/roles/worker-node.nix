@@ -69,7 +69,7 @@ in
       clientCaFile = caCert;
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
-      nodeIp = ''$(ip -4 addr show tailscale0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')'';
+      nodeIp = "\${NODE_IP}";
       kubeconfig = {
         server = "https://${cluster.network.apiServerAddress.workers}:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
@@ -163,5 +163,30 @@ in
 
   systemd.services = {
     kubelet.after = [ "tailscaled.service" "containerd.service" "k8s-bootstrap-generate-cni-kubeconfig.service" ];
+  };
+
+  systemd.services.kubelet = {
+    # 쉘 명령어를 찾을 수 있도록 패키지 경로 추가
+    path = with pkgs; [ iproute2 gnugrep gawk coreutils ];
+
+    preStart = ''
+      # wait for tailscale0 interface
+      while ! ip addr show tailscale0 >/dev/null 2>&1; do
+        echo "Waiting for tailscale0..."
+        sleep 2
+      done
+
+      NODE_IP=$(ip -4 addr show tailscale0 | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
+      
+      echo "NODE_IP=$NODE_IP" > /run/kubelet-env
+      echo "Successfully detected Tailscale IP: $NODE_IP"
+    '';
+
+    serviceConfig = {
+      EnvironmentFile = "/run/kubelet-env";
+    };
+
+    after = [ "tailscaled.service" ];
+    wants = [ "tailscaled.service" ];
   };
 }
