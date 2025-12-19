@@ -146,7 +146,7 @@ in
       clientCaFile = caCert;
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
-      nodeIp = "$(ip -4 addr show tailscale0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')";
+      nodeIp = ''$(ip -4 addr show tailscale0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')'';
       kubeconfig = {
         server = "https://${cluster.network.apiServerAddress.controlPlane}:${toString cluster.controlPlane.apiServerPort}";
         caFile = caCert;
