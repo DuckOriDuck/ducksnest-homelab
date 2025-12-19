@@ -30,7 +30,7 @@
       serviceCIDR = lib.mkOption {
         type = lib.types.str;
         description = "Service network CIDR";
-        example = "10.0.0.0/16";
+        example = "10.96.0.0/12";
       };
 
       nodeNetwork = lib.mkOption {

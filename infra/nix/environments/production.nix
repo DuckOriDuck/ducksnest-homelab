@@ -8,7 +8,7 @@
 
     network = {
       podCIDR = "10.244.0.0/16";
-      serviceCIDR = "10.0.0.0/16";
+      serviceCIDR = "10.96.0.0/12";
       nodeNetwork = "192.168.1.0/24";
 
       apiServerAddress = {

@@ -84,6 +84,7 @@ in
       enable = true;
       bindAddress = cluster.controlPlane.bindAddress;
       allowPrivileged = true;
+      serviceClusterIpRange = config.cluster.network.serviceCIDR;
       extraSANs = [
         config.networking.hostName
         "127.0.0.1"
