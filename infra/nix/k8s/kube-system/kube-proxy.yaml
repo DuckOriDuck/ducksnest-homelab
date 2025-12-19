@@ -71,6 +71,9 @@ spec:
         - name: kubeconfig
           mountPath: /etc/kubernetes
           readOnly: true
+        - name: kube-pki
+          mountPath: /etc/kubernetes/pki
+          readOnly: true
         - name: xtables-lock
           mountPath: /run/xtables.lock
           readOnly: false
@@ -85,6 +88,10 @@ spec:
         hostPath:
           path: /etc/kubernetes
           type: Directory
+      - name: kube-pki
+        hostPath:
+          path: /etc/kubernetes/pki
+          type: DirectoryOrCreate
       - name: xtables-lock
         hostPath:
           path: /run/xtables.lock

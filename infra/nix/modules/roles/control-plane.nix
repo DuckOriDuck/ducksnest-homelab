@@ -237,12 +237,18 @@ in
 
       generate-kube-proxy-kubeconfig = {
         description = "Generate kube-proxy kubeconfig for control plane";
+        preStart = ''
+          mkdir -p /etc/kubernetes/pki
+          cp ${caCert} /etc/kubernetes/pki/ca.crt
+          cp ${certs.kube-proxy.path} /etc/kubernetes/pki/kube-proxy.crt
+          cp ${certs.kube-proxy.keyPath} /etc/kubernetes/pki/kube-proxy.key
+        '';
         script = "${bootstrapScripts}/generate-kubeconfig.sh";
         args = [
           "/etc/kubernetes/kube-proxy.kubeconfig"
-          caCert
-          certs.kube-proxy.path
-          certs.kube-proxy.keyPath
+          "/etc/kubernetes/pki/ca.crt"
+          "/etc/kubernetes/pki/kube-proxy.crt"
+          "/etc/kubernetes/pki/kube-proxy.key"
           "https://${cluster.network.apiServerAddress.controlPlane}:${toString cluster.controlPlane.apiServerPort}"
           cluster.name
           "kube-proxy"
