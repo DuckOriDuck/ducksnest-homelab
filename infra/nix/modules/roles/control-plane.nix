@@ -261,7 +261,12 @@ in
           "60"
           "5"
         ];
-        after = [ "k8s-bootstrap-generate-kubeconfig.service" "kube-apiserver.service" ];
+        after = [ 
+          "k8s-bootstrap-generate-kubeconfig.service"
+          "k8s-bootstrap-generate-kube-proxy-kubeconfig.service"
+          "k8s-bootstrap-generate-cni-kubeconfig"
+          "kube-apiserver.service" 
+          ];
         environment = {
           KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
         };
@@ -318,7 +323,7 @@ in
           "${pkgs.kubernetes}/bin/kubectl"
           "${./../../k8s/kube-system/kube-proxy.yaml}"
         ];
-        after = [ "k8s-bootstrap-bootstrap-rbac.service" ];
+        after = [ "k8s-bootstrap-bootstrap-rbac.service" "k8s-bootstrap-generate-kube-proxy-kubeconfig.service" ];
         environment = {
           KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
         };
@@ -329,7 +334,7 @@ in
   environment.variables.KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
 
   systemd.services.kubelet = {
-    after = [ "tailscaled.service"];
+    after = [ "tailscaled.service" "k8s-bootstrap-generate-kube-proxy-kubeconfig.service"];
     wants = [ "tailscaled.service" ];
     
     path = with pkgs; [ iproute2 gnugrep gawk coreutils ];

@@ -165,7 +165,8 @@ in
     after = [ 
       "tailscaled.service" 
       "containerd.service" 
-      "k8s-bootstrap-generate-cni-kubeconfig.service" 
+      "k8s-bootstrap-generate-cni-kubeconfig.service"
+      "k8s-bootstrap-generate-kube-proxy-kubeconfig.service"
       "network-online.target" 
     ];
     wants = [ 
