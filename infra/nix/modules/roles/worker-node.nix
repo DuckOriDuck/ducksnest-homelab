@@ -161,11 +161,9 @@ in
     };
   };
 
-  systemd.services = {
-    kubelet.after = [ "tailscaled.service" "containerd.service" "k8s-bootstrap-generate-cni-kubeconfig.service" ];
-  };
-
   systemd.services.kubelet = {
+    after = [ "tailscaled.service" "containerd.service" "k8s-bootstrap-generate-cni-kubeconfig.service" ];
+    wants = [ "tailscaled.service" ];
     # 쉘 명령어를 찾을 수 있도록 패키지 경로 추가
     path = with pkgs; [ iproute2 gnugrep gawk coreutils ];
 
@@ -186,7 +184,6 @@ in
       EnvironmentFile = "/run/kubelet-env";
     };
 
-    after = [ "tailscaled.service" ];
-    wants = [ "tailscaled.service" ];
+
   };
 }
