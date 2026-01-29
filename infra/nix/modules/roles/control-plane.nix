@@ -355,7 +355,7 @@ in
         if ip addr show tailscale0 >/dev/null 2>&1; then
           NODE_IP=$(ip -4 addr show tailscale0 | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
           if [ -n "$NODE_IP" ]; then
-            echo "NODE_IP=$NODE_IP" > /run/kube-apiserver-env
+            echo "NODE_IP=$NODE_IP" > /run/kube-apiserver/env
             echo "Successfully detected Tailscale IP for API server: $NODE_IP"
             exit 0
           fi
@@ -367,7 +367,8 @@ in
     '';
 
     serviceConfig = {
-      EnvironmentFile = "-/run/kube-apiserver-env";
+      RuntimeDirectory = "kube-apiserver";
+      EnvironmentFile = "-/run/kube-apiserver/env";
     };
   };
 
