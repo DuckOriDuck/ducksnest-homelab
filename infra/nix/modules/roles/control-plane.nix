@@ -95,6 +95,7 @@ in
         "kubernetes.default"
         "kubernetes.default.svc"
         "kubernetes.default.svc.cluster.local"
+        "10.96.0.1"
       ];
       clientCaFile = caCert;
       tlsCertFile = certs.kube-apiserver.path;
