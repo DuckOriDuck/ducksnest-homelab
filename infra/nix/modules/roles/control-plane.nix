@@ -84,6 +84,7 @@ in
     apiserver = {
       enable = true;
       bindAddress = cluster.controlPlane.bindAddress;
+      advertiseAddress = "\${NODE_IP}";
       allowPrivileged = true;
       serviceClusterIpRange = config.cluster.network.serviceCIDR;
       extraSANs = [
@@ -341,10 +342,39 @@ in
 
   environment.variables.KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
 
+  # kube-apiserver needs Tailscale IP for advertiseAddress
+  systemd.services.kube-apiserver = {
+    after = [ "tailscaled.service" "etcd.service" ];
+    wants = [ "tailscaled.service" ];
+
+    path = with pkgs; [ iproute2 gnugrep gawk coreutils ];
+
+    preStart = lib.mkBefore ''
+      echo "Waiting for tailscale0 interface for API server..."
+      for i in {1..30}; do
+        if ip addr show tailscale0 >/dev/null 2>&1; then
+          NODE_IP=$(ip -4 addr show tailscale0 | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
+          if [ -n "$NODE_IP" ]; then
+            echo "NODE_IP=$NODE_IP" > /run/kube-apiserver-env
+            echo "Successfully detected Tailscale IP for API server: $NODE_IP"
+            exit 0
+          fi
+        fi
+        sleep 2
+      done
+      echo "Error: Failed to detect Tailscale IP after 60 seconds."
+      exit 1
+    '';
+
+    serviceConfig = {
+      EnvironmentFile = "-/run/kube-apiserver-env";
+    };
+  };
+
   systemd.services.kubelet = {
     after = [ "tailscaled.service" "k8s-bootstrap-generate-kube-proxy-kubeconfig.service"];
     wants = [ "tailscaled.service" ];
-    
+
     path = with pkgs; [ iproute2 gnugrep gawk coreutils ];
 
     preStart = ''
