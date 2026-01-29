@@ -74,6 +74,7 @@ in
     tree
     vim
     fastfetchMinimal
+    fluxcd
   ];
 
   services.kubernetes = {
