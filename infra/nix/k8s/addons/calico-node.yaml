@@ -76,6 +76,8 @@ spec:
               value: "info"
             - name: FELIX_HEALTHENABLED
               value: "true"
+            - name: FELIX_VXLANMTU
+              value: "1230"
           securityContext:
             privileged: true
           resources:
