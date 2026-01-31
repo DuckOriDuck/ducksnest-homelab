@@ -318,7 +318,7 @@ in
         script = "${bootstrapScripts}/apply-manifests.sh";
         args = [
           "${pkgs.kubernetes}/bin/kubectl"
-          "${./../../k8s/addons/calico-node.yaml}"
+          "${./../../k8s/kube-system/calico-node.yaml}"
         ];
         after = [ "k8s-bootstrap-bootstrap-rbac.service" "k8s-bootstrap-calico-ip-pool.service" ];
         environment = {
@@ -334,6 +334,19 @@ in
           "${./../../k8s/kube-system/kube-proxy.yaml}"
         ];
         after = [ "k8s-bootstrap-bootstrap-rbac.service" "k8s-bootstrap-generate-kube-proxy-kubeconfig.service" ];
+        environment = {
+          KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
+        };
+      };
+
+      coredns = {
+        description = "Deploy CoreDNS";
+        script = "${bootstrapScripts}/apply-manifests.sh";
+        args = [
+          "${pkgs.kubernetes}/bin/kubectl"
+          "${./../../k8s/kube-system/coredns.yaml}"
+        ];
+        after = [ "k8s-bootstrap-bootstrap-rbac.service" ];
         environment = {
           KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
         };
