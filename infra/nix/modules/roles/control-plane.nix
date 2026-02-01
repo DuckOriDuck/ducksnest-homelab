@@ -140,6 +140,7 @@ in
       enable = true;
       registerNode = true;
       containerRuntimeEndpoint = "unix:///var/run/containerd/containerd.sock";
+      clusterDns = "10.96.0.10";
       taints = {
         master = {
           key = "node-role.kubernetes.io/control-plane";

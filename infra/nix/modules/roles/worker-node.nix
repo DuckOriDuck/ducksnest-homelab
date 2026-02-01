@@ -66,6 +66,7 @@ in
       registerNode = true;
       unschedulable = false;
       containerRuntimeEndpoint = "unix:///var/run/containerd/containerd.sock";
+      clusterDns = "10.96.0.10";
       clientCaFile = caCert;
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
