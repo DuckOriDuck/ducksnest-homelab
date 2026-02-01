@@ -52,6 +52,7 @@ in
     wget
     unzip
     htop
+    btop
     tree
     vim
     fastfetchMinimal
