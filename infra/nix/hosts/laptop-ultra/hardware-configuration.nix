@@ -15,12 +15,16 @@
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
   fileSystems."/" =
-    { device = "/dev/disk/by-uuid/be161aff-2b2f-4e43-9c20-a9ef430864f6";
+    { device = "/dev/disk/by-uuid/208ce88d-609f-4382-a851-4a3bc0390916";
       fsType = "ext4";
     };
-
+  fileSystems."/hdd-storage" =
+    { device = "/dev/disk/by-uuid/11660c53-f63d-43e1-825c-9deac5fb282d";
+      fsType = "ext4";
+      options = ["defaults" "nofail"];
+    };
   fileSystems."/boot" =
-    { device = "/dev/disk/by-uuid/BE68-A5B8";
+    { device = "/dev/disk/by-uuid/AA33-B1FF";
       fsType = "vfat";
       options = [ "fmask=0077" "dmask=0077" ];
     };

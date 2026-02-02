@@ -74,6 +74,7 @@ in
     tree
     vim
     fastfetchMinimal
+    fluxcd
   ];
 
   services.kubernetes = {
@@ -83,6 +84,7 @@ in
     apiserver = {
       enable = true;
       bindAddress = cluster.controlPlane.bindAddress;
+      advertiseAddress = "\${NODE_IP}";
       allowPrivileged = true;
       serviceClusterIpRange = config.cluster.network.serviceCIDR;
       extraSANs = [
@@ -93,6 +95,7 @@ in
         "kubernetes.default"
         "kubernetes.default.svc"
         "kubernetes.default.svc.cluster.local"
+        "10.96.0.1"
       ];
       clientCaFile = caCert;
       tlsCertFile = certs.kube-apiserver.path;
@@ -137,6 +140,7 @@ in
       enable = true;
       registerNode = true;
       containerRuntimeEndpoint = "unix:///var/run/containerd/containerd.sock";
+      clusterDns = [ "10.96.0.10" ];
       taints = {
         master = {
           key = "node-role.kubernetes.io/control-plane";
@@ -163,7 +167,7 @@ in
             cniVersion = "0.3.1";
             log_level = "info";
             datastore_type = "kubernetes";
-            mtu = 1500;
+            mtu = 1230;
             ipam = {
               type = "calico-ipam";
             };
@@ -190,6 +194,8 @@ in
     "fs.inotify.max_user_watches" = 524288;
     "fs.inotify.max_user_instances" = 512;
     "vm.max_map_count" = 262144;
+    "net.ipv4.conf.all.rp_filter" = 0;
+    "net.ipv4.conf.default.rp_filter" = 0;
   };
 
   boot.kernelModules = [ "overlay" "br_netfilter" ];
@@ -315,7 +321,7 @@ in
         script = "${bootstrapScripts}/apply-manifests.sh";
         args = [
           "${pkgs.kubernetes}/bin/kubectl"
-          "${./../../k8s/addons/calico-node.yaml}"
+          "${./../../k8s/kube-system/calico-node.yaml}"
         ];
         after = [ "k8s-bootstrap-bootstrap-rbac.service" "k8s-bootstrap-calico-ip-pool.service" ];
         environment = {
@@ -335,15 +341,58 @@ in
           KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
         };
       };
+
+      coredns = {
+        description = "Deploy CoreDNS";
+        script = "${bootstrapScripts}/apply-manifests.sh";
+        args = [
+          "${pkgs.kubernetes}/bin/kubectl"
+          "${./../../k8s/kube-system/coredns.yaml}"
+        ];
+        after = [ "k8s-bootstrap-bootstrap-rbac.service" ];
+        environment = {
+          KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
+        };
+      };
     };
   };
 
   environment.variables.KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
 
+  # kube-apiserver needs Tailscale IP for advertiseAddress
+  systemd.services.kube-apiserver = {
+    after = [ "tailscaled.service" "etcd.service" ];
+    wants = [ "tailscaled.service" ];
+
+    path = with pkgs; [ iproute2 gnugrep gawk coreutils ];
+
+    preStart = lib.mkBefore ''
+      echo "Waiting for tailscale0 interface for API server..."
+      for i in {1..30}; do
+        if ip addr show tailscale0 >/dev/null 2>&1; then
+          NODE_IP=$(ip -4 addr show tailscale0 | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
+          if [ -n "$NODE_IP" ]; then
+            echo "NODE_IP=$NODE_IP" > /run/kube-apiserver/env
+            echo "Successfully detected Tailscale IP for API server: $NODE_IP"
+            exit 0
+          fi
+        fi
+        sleep 2
+      done
+      echo "Error: Failed to detect Tailscale IP after 60 seconds."
+      exit 1
+    '';
+
+    serviceConfig = {
+      RuntimeDirectory = "kube-apiserver";
+      EnvironmentFile = "-/run/kube-apiserver/env";
+    };
+  };
+
   systemd.services.kubelet = {
     after = [ "tailscaled.service" "k8s-bootstrap-generate-kube-proxy-kubeconfig.service"];
     wants = [ "tailscaled.service" ];
-    
+
     path = with pkgs; [ iproute2 gnugrep gawk coreutils ];
 
     preStart = ''

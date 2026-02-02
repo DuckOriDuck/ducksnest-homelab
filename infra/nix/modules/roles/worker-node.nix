@@ -52,6 +52,7 @@ in
     wget
     unzip
     htop
+    btop
     tree
     vim
     fastfetchMinimal
@@ -66,6 +67,7 @@ in
       registerNode = true;
       unschedulable = false;
       containerRuntimeEndpoint = "unix:///var/run/containerd/containerd.sock";
+      clusterDns = [ "10.96.0.10" ];
       clientCaFile = caCert;
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
@@ -85,7 +87,7 @@ in
             cniVersion = "0.3.1";
             log_level = "info";
             datastore_type = "kubernetes";
-            mtu = 1500;
+            mtu = 1230;
             ipam = {
               type = "calico-ipam";
             };
@@ -115,6 +117,8 @@ in
     "fs.inotify.max_user_watches" = 524288;
     "fs.inotify.max_user_instances" = 512;
     "vm.max_map_count" = 262144;
+    "net.ipv4.conf.all.rp_filter" = 0;
+    "net.ipv4.conf.default.rp_filter" = 0;
   };
 
   boot.kernelModules = [ "overlay" "br_netfilter" ];

@@ -121,6 +121,7 @@
           "kubernetes.default"
           "kubernetes.default.svc"
           "kubernetes.default.svc.cluster.local"
+          "10.96.0.1"
         ] ++ (if config.networking.hostName == "ducksnest-test-controlplane" then [ "10.100.0.2" ] else []);
         owner = "kubernetes";
         usages = [ "server auth" ];
