@@ -123,13 +123,6 @@ in
 
   boot.kernelModules = [ "overlay" "br_netfilter" ];
 
-  # Ignore lid close for laptop workers
-  services.logind = {
-    lidSwitch = "ignore";
-    lidSwitchExternalPower = "ignore";
-    lidSwitchDocked = "ignore";
-  };
-
   systemd.tmpfiles.rules = [
     "d /var/lib/cni/net.d 0755 root root -"
     "C /var/lib/cni/net.d/10-calico.conflist 0644 root root - ${calicoCniConfig}"

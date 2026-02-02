@@ -76,7 +76,6 @@
     };
   };
 
-
   # Virtualization setup
   virtualisation = {
     libvirtd.enable = true;
