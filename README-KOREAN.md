@@ -108,7 +108,7 @@ Control Plane이 EC2에 자리 잡고 있기 때문에 시도해볼 수 있는 �
 | **Local LAN** | 192.168.0.0/24 | 동일 물리망에 있는 온프레미스 노드 라우팅 |
 | **Tailnet (Tailscale)** | 100.64.0.0/10 | EC2 ↔ On-prem 간 API/Pod 통신 |
 | **Node IP Autodetection** | interface=wlan* | tailscale0 제외, 로컬 Wi-Fi 인터페이스를 노드 IP로 자동 감지 |
-| **Calico MTU** | 1280 | Tailnet MTU에 맞춰 캡슐화 시 단편화 방지 |
+| **Calico MTU** | 1230 | Tailnet MTU에 맞춰 캡슐화 시 단편화 방지 |
 
 ---
 

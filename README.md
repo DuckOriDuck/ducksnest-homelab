@@ -95,7 +95,7 @@ However, if I have the resources in the future, I'm open to expanding both the C
 | **Local LAN**              | 192.168.0.0/24 | Default route for nodes within the same local network |
 | **Tailnet (Tailscale)**    | 100.64.0.0/10 | Used as L3 route for API access between EC2 and on-prem nodes |
 | **Node IP Autodetection**  | interface=wlan* | Excludes tailscale0 and uses the Wi-Fi interface (wlan0) as the node’s primary IP for Calico VXLAN encapsulation and routing. |
-| **Calico MTU**             | 1280 | Aligned with Tailnet MTU to prevent fragmentation after encapsulation in tailnet|
+| **Calico MTU**             | 1230 | Aligned with Tailnet MTU to prevent fragmentation after encapsulation in tailnet|
 
 
 ## Current Progress

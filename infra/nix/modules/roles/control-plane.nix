@@ -167,7 +167,7 @@ in
             cniVersion = "0.3.1";
             log_level = "info";
             datastore_type = "kubernetes";
-            mtu = 1500;
+            mtu = 1230;
             ipam = {
               type = "calico-ipam";
             };
