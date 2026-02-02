@@ -15,12 +15,12 @@
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
   fileSystems."/" =
-    { device = "/dev/disk/by-uuid/be161aff-2b2f-4e43-9c20-a9ef430864f6";
+    { device = "/dev/disk/by-uuid/208ce88d-609f-4382-a851-4a3bc0390916";
       fsType = "ext4";
     };
 
   fileSystems."/boot" =
-    { device = "/dev/disk/by-uuid/BE68-A5B8";
+    { device = "/dev/disk/by-uuid/AA33-B1FF";
       fsType = "vfat";
       options = [ "fmask=0077" "dmask=0077" ];
     };
