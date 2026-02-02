@@ -117,9 +117,18 @@ in
     "fs.inotify.max_user_watches" = 524288;
     "fs.inotify.max_user_instances" = 512;
     "vm.max_map_count" = 262144;
+    "net.ipv4.conf.all.rp_filter" = 0;
+    "net.ipv4.conf.default.rp_filter" = 0;
   };
 
   boot.kernelModules = [ "overlay" "br_netfilter" ];
+
+  # Ignore lid close for laptop workers
+  services.logind = {
+    lidSwitch = "ignore";
+    lidSwitchExternalPower = "ignore";
+    lidSwitchDocked = "ignore";
+  };
 
   systemd.tmpfiles.rules = [
     "d /var/lib/cni/net.d 0755 root root -"
