@@ -91,6 +91,7 @@ in
         config.networking.hostName
         "127.0.0.1"
         "localhost"
+        "192.168.0.15"
         "kubernetes"
         "kubernetes.default"
         "kubernetes.default.svc"
@@ -141,13 +142,7 @@ in
       registerNode = true;
       containerRuntimeEndpoint = "unix:///var/run/containerd/containerd.sock";
       clusterDns = [ "10.96.0.10" ];
-      taints = {
-        master = {
-          key = "node-role.kubernetes.io/control-plane";
-          value = "true";
-          effect = "NoSchedule";
-        };
-      };
+      # No taints - control plane also serves as worker node
       clientCaFile = caCert;
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
@@ -200,6 +195,32 @@ in
 
   boot.kernelModules = [ "overlay" "br_netfilter" ];
   boot.kernelPackages = pkgs.linuxPackages;
+
+  # Firewall settings for Kubernetes control plane
+  networking.firewall = {
+    allowedTCPPorts = [
+      6443   # Kubernetes API server
+      2379   # etcd client
+      2380   # etcd peer
+      10250  # Kubelet API
+      10259  # kube-scheduler
+      10257  # kube-controller-manager
+      179    # BGP (Calico)
+      9100   # node-exporter
+      9090   # Prometheus
+      9093   # Alertmanager
+    ];
+    allowedUDPPorts = [
+      8472   # VXLAN (Calico/Flannel)
+    ];
+    # Allow IPIP protocol (protocol 4) for Calico
+    extraCommands = ''
+      iptables -A nixos-fw -p 4 -j nixos-fw-accept
+    '';
+    extraStopCommands = ''
+      iptables -D nixos-fw -p 4 -j nixos-fw-accept || true
+    '';
+  };
 
   # Create writable directory for CNI configuration
   systemd.tmpfiles.rules = [
@@ -359,27 +380,26 @@ in
 
   environment.variables.KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
 
-  # kube-apiserver needs Tailscale IP for advertiseAddress
+  # kube-apiserver needs LAN IP for advertiseAddress
   systemd.services.kube-apiserver = {
-    after = [ "tailscaled.service" "etcd.service" ];
-    wants = [ "tailscaled.service" ];
+    after = [ "network-online.target" "etcd.service" ];
+    wants = [ "network-online.target" ];
 
     path = with pkgs; [ iproute2 gnugrep gawk coreutils ];
 
     preStart = lib.mkBefore ''
-      echo "Waiting for tailscale0 interface for API server..."
+      echo "Detecting LAN IP for API server..."
       for i in {1..30}; do
-        if ip addr show tailscale0 >/dev/null 2>&1; then
-          NODE_IP=$(ip -4 addr show tailscale0 | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
-          if [ -n "$NODE_IP" ]; then
-            echo "NODE_IP=$NODE_IP" > /run/kube-apiserver/env
-            echo "Successfully detected Tailscale IP for API server: $NODE_IP"
-            exit 0
-          fi
+        # Detect IP from first non-loopback, non-container interface
+        NODE_IP=$(ip -4 addr show scope global | grep 'inet ' | grep -v 'docker\|veth\|cni\|flannel\|br-\|tailscale' | head -1 | awk '{print $2}' | cut -d/ -f1)
+        if [ -n "$NODE_IP" ]; then
+          echo "NODE_IP=$NODE_IP" > /run/kube-apiserver/env
+          echo "Successfully detected LAN IP for API server: $NODE_IP"
+          exit 0
         fi
         sleep 2
       done
-      echo "Error: Failed to detect Tailscale IP after 60 seconds."
+      echo "Error: Failed to detect LAN IP after 60 seconds."
       exit 1
     '';
 
@@ -390,26 +410,24 @@ in
   };
 
   systemd.services.kubelet = {
-    after = [ "tailscaled.service" "k8s-bootstrap-generate-kube-proxy-kubeconfig.service"];
-    wants = [ "tailscaled.service" ];
+    after = [ "network-online.target" "k8s-bootstrap-generate-kube-proxy-kubeconfig.service"];
+    wants = [ "network-online.target" ];
 
     path = with pkgs; [ iproute2 gnugrep gawk coreutils ];
 
     preStart = ''
-      echo "Waiting for tailscale0 interface..."
-      # 최대 60초 동안 tailscale0 인터페이스 대기
+      echo "Detecting node IP from LAN interface..."
       for i in {1..30}; do
-        if ip addr show tailscale0 >/dev/null 2>&1; then
-          NODE_IP=$(ip -4 addr show tailscale0 | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
-          if [ -n "$NODE_IP" ]; then
-            echo "NODE_IP=$NODE_IP" > /run/kubelet-env
-            echo "Successfully detected Tailscale IP: $NODE_IP"
-            exit 0
-          fi
+        # Detect IP from first non-loopback, non-container interface
+        NODE_IP=$(ip -4 addr show scope global | grep 'inet ' | grep -v 'docker\|veth\|cni\|flannel\|br-' | head -1 | awk '{print $2}' | cut -d/ -f1)
+        if [ -n "$NODE_IP" ]; then
+          echo "NODE_IP=$NODE_IP" > /run/kubelet-env
+          echo "Detected node IP: $NODE_IP"
+          exit 0
         fi
         sleep 2
       done
-      echo "Error: Failed to detect Tailscale IP after 60 seconds."
+      echo "Error: Failed to detect node IP after 60 seconds."
       exit 1
     '';
 

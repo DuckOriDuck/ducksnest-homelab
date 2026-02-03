@@ -94,6 +94,7 @@ rules:
       - bgppeers
       - globalbgpconfigs
       - bgpconfigurations
+      - bgpfilters
       - ippools
       - ipamblocks
       - globalnetworkpolicies

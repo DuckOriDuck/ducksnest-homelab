@@ -117,6 +117,7 @@
           config.networking.hostName
           "127.0.0.1"
           "localhost"
+          "192.168.0.15"
           "kubernetes"
           "kubernetes.default"
           "kubernetes.default.svc"

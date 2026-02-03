@@ -123,6 +123,29 @@ in
 
   boot.kernelModules = [ "overlay" "br_netfilter" ];
 
+  # Firewall settings for Kubernetes worker node
+  networking.firewall = {
+    allowedTCPPorts = [
+      10250  # Kubelet API
+      179    # BGP (Calico)
+      9100   # node-exporter
+    ];
+    allowedTCPPortRanges = [{
+      from = 30000;
+      to = 32767;
+    }];  # NodePort range
+    allowedUDPPorts = [
+      8472   # VXLAN (Calico/Flannel)
+    ];
+    # Allow IPIP protocol (protocol 4) for Calico
+    extraCommands = ''
+      iptables -A nixos-fw -p 4 -j nixos-fw-accept
+    '';
+    extraStopCommands = ''
+      iptables -D nixos-fw -p 4 -j nixos-fw-accept || true
+    '';
+  };
+
   systemd.tmpfiles.rules = [
     "d /var/lib/cni/net.d 0755 root root -"
     "C /var/lib/cni/net.d/10-calico.conflist 0644 root root - ${calicoCniConfig}"
@@ -172,32 +195,31 @@ in
   };
 
   systemd.services.kubelet = {
-    after = [ 
-      "tailscaled.service" 
-      "containerd.service" 
+    after = [
+      "network-online.target"
+      "containerd.service"
       "k8s-bootstrap-generate-cni-kubeconfig.service"
       "k8s-bootstrap-generate-kube-proxy-kubeconfig.service"
-      "network-online.target" 
     ];
-    wants = [ 
-      "tailscaled.service" 
-      "network-online.target" # 추가
+    wants = [
+      "network-online.target"
     ];
-    
+
     path = with pkgs; [ iproute2 gnugrep gawk coreutils ];
 
     preStart = ''
-      echo "Waiting for tailscale0 interface..."
+      echo "Detecting node IP from LAN interface..."
       for i in {1..30}; do
-        if ip addr show tailscale0 >/dev/null 2>&1; then
-          NODE_IP=$(ip -4 addr show tailscale0 | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
-          if [ -n "$NODE_IP" ]; then
-            echo "NODE_IP=$NODE_IP" > /run/kubelet-env
-            exit 0
-          fi
+        # Detect IP from first non-loopback, non-container interface
+        NODE_IP=$(ip -4 addr show scope global | grep 'inet ' | grep -v 'docker\|veth\|cni\|flannel\|br-' | head -1 | awk '{print $2}' | cut -d/ -f1)
+        if [ -n "$NODE_IP" ]; then
+          echo "NODE_IP=$NODE_IP" > /run/kubelet-env
+          echo "Detected node IP: $NODE_IP"
+          exit 0
         fi
         sleep 2
       done
+      echo "Error: Failed to detect node IP after 60 seconds."
       exit 1
     '';
 
