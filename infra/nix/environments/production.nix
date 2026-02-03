@@ -26,7 +26,7 @@
     cni = {
       provider = "calico";
       calico = {
-        vxlanMode = "CrossSubnet";
+        vxlanMode = "Never";
         ipAutodetectionMethod = "first-found";
       };
     };

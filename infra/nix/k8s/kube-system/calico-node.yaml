@@ -50,12 +50,12 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
             - name: CALICO_NETWORKING_BACKEND
-              value: vxlan
-            # Felix config for CrossSubnet mode
+              value: bird
+            # Felix config - no overlay, direct routing on same LAN
             - name: FELIX_IPINIPENABLED
               value: "false"
             - name: FELIX_VXLANENABLED
-              value: "true"
+              value: "false"
             - name: CLUSTER_TYPE
               value: "k8s"
             # IP Pool CIDR

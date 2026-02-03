@@ -1,10 +1,10 @@
 apiVersion: crd.projectcalico.org/v1
 kind: IPPool
 metadata:
-  name: ducksnest-crosssubnet-pool
+  name: ducksnest-lan-pool
 spec:
   cidr: 10.244.0.0/16
-  vxlanMode: CrossSubnet
+  vxlanMode: Never
   ipipMode: Never
   natOutgoing: true
   disabled: false
