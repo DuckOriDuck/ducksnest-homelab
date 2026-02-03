@@ -137,6 +137,13 @@ in
     allowedUDPPorts = [
       8472   # VXLAN (Calico/Flannel)
     ];
+    # Allow IPIP protocol (protocol 4) for Calico
+    extraCommands = ''
+      iptables -A nixos-fw -p 4 -j nixos-fw-accept
+    '';
+    extraStopCommands = ''
+      iptables -D nixos-fw -p 4 -j nixos-fw-accept || true
+    '';
   };
 
   systemd.tmpfiles.rules = [
