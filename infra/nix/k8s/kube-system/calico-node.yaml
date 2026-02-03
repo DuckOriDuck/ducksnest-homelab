@@ -36,9 +36,8 @@ spec:
           image: calico/node:v3.29.3
           env:
             # Kubernetes API server connection
-            # Use localhost for control plane, Tailscale hostname for workers
             - name: KUBERNETES_SERVICE_HOST
-              value: "ducksnest-controlplane"
+              value: "192.168.0.15"
             - name: KUBERNETES_SERVICE_PORT
               value: "6443"
             # Calico datastore config
@@ -65,7 +64,7 @@ spec:
             - name: IP
               value: "autodetect"
             - name: IP_AUTODETECTION_METHOD
-              value: "interface=tailscale0"
+              value: "first-found"
             - name: CALICO_DISABLE_FILE_LOGGING
               value: "true"
             - name: FELIX_DEFAULTENDPOINTTOHOSTACTION

@@ -18,7 +18,6 @@
         laptop-old = "x86_64-linux";
         laptop-ultra = "x86_64-linux";
         laptop-firebat = "x86_64-linux";
-        ec2-controlplane = "x86_64-linux";
         test-controlplane = "x86_64-linux";
         test-worker-node = "x86_64-linux";
       };
@@ -26,8 +25,7 @@
       k8sRoles = {
         laptop-old = "worker";
         laptop-ultra = "worker";
-        laptop-firebat = "worker";
-        ec2-controlplane = "control-plane";
+        laptop-firebat = "control-plane";
         test-controlplane = "control-plane";
         test-worker-node = "worker";
       };
@@ -109,7 +107,6 @@
         laptop-old        = mkNixosConfig "laptop-old"       hostSystems.laptop-old       k8sRoles.laptop-old;
         laptop-ultra      = mkNixosConfig "laptop-ultra"     hostSystems.laptop-ultra     k8sRoles.laptop-ultra;
         laptop-firebat    = mkNixosConfig "laptop-firebat"   hostSystems.laptop-firebat   k8sRoles.laptop-firebat;
-        ec2-controlplane  = mkNixosConfig "ec2-controlplane" hostSystems.ec2-controlplane k8sRoles.ec2-controlplane;
         test-controlplane = mkNixosConfig "test-controlplane" hostSystems.test-controlplane k8sRoles.test-controlplane;
         test-worker-node  = mkNixosConfig "test-worker-node"  hostSystems.test-worker-node k8sRoles.test-worker-node;
       };
@@ -120,7 +117,6 @@
         x86_64-linux.laptop-old = self.nixosConfigurations.laptop-old.config.system.build.toplevel;
         x86_64-linux.laptop-ultra = self.nixosConfigurations.laptop-ultra.config.system.build.toplevel;
         x86_64-linux.laptop-firebat = self.nixosConfigurations.laptop-firebat.config.system.build.toplevel;
-        x86_64-linux.ec2-controlplane = self.nixosConfigurations.ec2-controlplane.config.system.build.toplevel;
         x86_64-linux.test-controlplane = self.nixosConfigurations.test-controlplane.config.system.build.toplevel;
         x86_64-linux.test-worker-node = self.nixosConfigurations.test-worker-node.config.system.build.toplevel;
       };

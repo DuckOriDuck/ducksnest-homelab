@@ -9,16 +9,16 @@
     network = {
       podCIDR = "10.244.0.0/16";
       serviceCIDR = "10.96.0.0/12";
-      nodeNetwork = "192.168.1.0/24";
+      nodeNetwork = "192.168.0.0/24";
 
       apiServerAddress = {
         controlPlane = "127.0.0.1";
-        workers = "ducksnest-controlplane";
+        workers = "192.168.0.15";
       };
     };
 
     controlPlane = {
-      hostname = "ducksnest-controlplane";
+      hostname = "ducksnest-laptop-firebat";
       apiServerPort = 6443;
       bindAddress = "0.0.0.0";
     };
@@ -27,7 +27,7 @@
       provider = "calico";
       calico = {
         vxlanMode = "CrossSubnet";
-        ipAutodetectionMethod = "interface=tailscale0";
+        ipAutodetectionMethod = "first-found";
       };
     };
   };

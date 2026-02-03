@@ -91,6 +91,7 @@ in
         config.networking.hostName
         "127.0.0.1"
         "localhost"
+        "192.168.0.15"
         "kubernetes"
         "kubernetes.default"
         "kubernetes.default.svc"
@@ -141,13 +142,7 @@ in
       registerNode = true;
       containerRuntimeEndpoint = "unix:///var/run/containerd/containerd.sock";
       clusterDns = [ "10.96.0.10" ];
-      taints = {
-        master = {
-          key = "node-role.kubernetes.io/control-plane";
-          value = "true";
-          effect = "NoSchedule";
-        };
-      };
+      # No taints - control plane also serves as worker node
       clientCaFile = caCert;
       tlsCertFile = certs.kubelet.path;
       tlsKeyFile = certs.kubelet.keyPath;
@@ -390,26 +385,29 @@ in
   };
 
   systemd.services.kubelet = {
+<<<<<<< HEAD
     after = [ "tailscaled.service" "k8s-bootstrap-generate-kube-proxy-kubeconfig.service"];
     wants = [ "tailscaled.service" ];
+=======
+    after = [ "network-online.target" "k8s-bootstrap-generate-kube-proxy-kubeconfig.service"];
+    wants = [ "network-online.target" ];
+>>>>>>> a490054 (refactor: firebat to work as CP and WN)
 
     path = with pkgs; [ iproute2 gnugrep gawk coreutils ];
 
     preStart = ''
-      echo "Waiting for tailscale0 interface..."
-      # 최대 60초 동안 tailscale0 인터페이스 대기
+      echo "Detecting node IP from LAN interface..."
       for i in {1..30}; do
-        if ip addr show tailscale0 >/dev/null 2>&1; then
-          NODE_IP=$(ip -4 addr show tailscale0 | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
-          if [ -n "$NODE_IP" ]; then
-            echo "NODE_IP=$NODE_IP" > /run/kubelet-env
-            echo "Successfully detected Tailscale IP: $NODE_IP"
-            exit 0
-          fi
+        # Detect IP from first non-loopback, non-container interface
+        NODE_IP=$(ip -4 addr show scope global | grep 'inet ' | grep -v 'docker\|veth\|cni\|flannel\|br-' | head -1 | awk '{print $2}' | cut -d/ -f1)
+        if [ -n "$NODE_IP" ]; then
+          echo "NODE_IP=$NODE_IP" > /run/kubelet-env
+          echo "Detected node IP: $NODE_IP"
+          exit 0
         fi
         sleep 2
       done
-      echo "Error: Failed to detect Tailscale IP after 60 seconds."
+      echo "Error: Failed to detect node IP after 60 seconds."
       exit 1
     '';
 
