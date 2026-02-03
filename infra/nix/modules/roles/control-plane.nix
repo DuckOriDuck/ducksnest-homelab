@@ -385,13 +385,8 @@ in
   };
 
   systemd.services.kubelet = {
-<<<<<<< HEAD
-    after = [ "tailscaled.service" "k8s-bootstrap-generate-kube-proxy-kubeconfig.service"];
-    wants = [ "tailscaled.service" ];
-=======
     after = [ "network-online.target" "k8s-bootstrap-generate-kube-proxy-kubeconfig.service"];
     wants = [ "network-online.target" ];
->>>>>>> a490054 (refactor: firebat to work as CP and WN)
 
     path = with pkgs; [ iproute2 gnugrep gawk coreutils ];
 
