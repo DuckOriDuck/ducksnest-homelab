@@ -5,7 +5,7 @@ metadata:
 spec:
   cidr: 10.244.0.0/16
   vxlanMode: Never
-  ipipMode: Never
+  ipipMode: CrossSubnet
   natOutgoing: true
   disabled: false
   blockSize: 26
