@@ -373,27 +373,26 @@ in
 
   environment.variables.KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
 
-  # kube-apiserver needs Tailscale IP for advertiseAddress
+  # kube-apiserver needs LAN IP for advertiseAddress
   systemd.services.kube-apiserver = {
-    after = [ "tailscaled.service" "etcd.service" ];
-    wants = [ "tailscaled.service" ];
+    after = [ "network-online.target" "etcd.service" ];
+    wants = [ "network-online.target" ];
 
     path = with pkgs; [ iproute2 gnugrep gawk coreutils ];
 
     preStart = lib.mkBefore ''
-      echo "Waiting for tailscale0 interface for API server..."
+      echo "Detecting LAN IP for API server..."
       for i in {1..30}; do
-        if ip addr show tailscale0 >/dev/null 2>&1; then
-          NODE_IP=$(ip -4 addr show tailscale0 | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
-          if [ -n "$NODE_IP" ]; then
-            echo "NODE_IP=$NODE_IP" > /run/kube-apiserver/env
-            echo "Successfully detected Tailscale IP for API server: $NODE_IP"
-            exit 0
-          fi
+        # Detect IP from first non-loopback, non-container interface
+        NODE_IP=$(ip -4 addr show scope global | grep 'inet ' | grep -v 'docker\|veth\|cni\|flannel\|br-\|tailscale' | head -1 | awk '{print $2}' | cut -d/ -f1)
+        if [ -n "$NODE_IP" ]; then
+          echo "NODE_IP=$NODE_IP" > /run/kube-apiserver/env
+          echo "Successfully detected LAN IP for API server: $NODE_IP"
+          exit 0
         fi
         sleep 2
       done
-      echo "Error: Failed to detect Tailscale IP after 60 seconds."
+      echo "Error: Failed to detect LAN IP after 60 seconds."
       exit 1
     '';
 
