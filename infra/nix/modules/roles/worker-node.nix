@@ -123,6 +123,22 @@ in
 
   boot.kernelModules = [ "overlay" "br_netfilter" ];
 
+  # Firewall settings for Kubernetes worker node
+  networking.firewall = {
+    allowedTCPPorts = [
+      10250  # Kubelet API
+      179    # BGP (Calico)
+      9100   # node-exporter
+    ];
+    allowedTCPPortRanges = [{
+      from = 30000;
+      to = 32767;
+    }];  # NodePort range
+    allowedUDPPorts = [
+      8472   # VXLAN (Calico/Flannel)
+    ];
+  };
+
   systemd.tmpfiles.rules = [
     "d /var/lib/cni/net.d 0755 root root -"
     "C /var/lib/cni/net.d/10-calico.conflist 0644 root root - ${calicoCniConfig}"

@@ -196,6 +196,25 @@ in
   boot.kernelModules = [ "overlay" "br_netfilter" ];
   boot.kernelPackages = pkgs.linuxPackages;
 
+  # Firewall settings for Kubernetes control plane
+  networking.firewall = {
+    allowedTCPPorts = [
+      6443   # Kubernetes API server
+      2379   # etcd client
+      2380   # etcd peer
+      10250  # Kubelet API
+      10259  # kube-scheduler
+      10257  # kube-controller-manager
+      179    # BGP (Calico)
+      9100   # node-exporter
+      9090   # Prometheus
+      9093   # Alertmanager
+    ];
+    allowedUDPPorts = [
+      8472   # VXLAN (Calico/Flannel)
+    ];
+  };
+
   # Create writable directory for CNI configuration
   systemd.tmpfiles.rules = [
     "d /var/lib/cni/net.d 0755 root root -"
