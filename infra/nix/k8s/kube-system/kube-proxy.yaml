@@ -10,8 +10,8 @@ data:
     clientConnection:
       kubeconfig: /etc/kubernetes/kube-proxy.kubeconfig
     clusterCIDR: "10.244.0.0/16"
-    mode: "iptables"
-    iptables:
+    mode: "nftables"
+    nftables:
       masqueradeAll: false
       masqueradeBit: 14
       minSyncPeriod: 0s
