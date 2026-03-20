@@ -5,6 +5,7 @@ metadata:
   namespace: databases
   annotations:
      tailscale.com/expose: "true"
+     tailscale.com/hostname: "ducks-db"
 spec:
   selector:
     app: postgres
